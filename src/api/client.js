@@ -7,26 +7,19 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// ── LOCAL STORAGE ─────────────────────────────
-const LS_PROJECT = 'qc_projects';
-const LS_VERSION = 'qc_versions';
-
+// ── LOCAL STORAGE ─────────────────────────
 const getLS = (key) => JSON.parse(localStorage.getItem(key) || '[]');
 const setLS = (key, data) => localStorage.setItem(key, JSON.stringify(data));
 
-// ── PROJECTS ─────────────────────────────
-export const getProjects = async () => {
-  try {
-    if (isLocal) return (await api.get('/projects')).data;
-  } catch {}
-  return getLS(LS_PROJECT);
-};
+const LS_PROJECT = 'qc_projects';
+const LS_VERSION = 'qc_versions';
+const LS_BUILD = 'qc_builds';
+const LS_TC = 'qc_testcases';
+
+// ── PROJECT ─────────────────────────
+export const getProjects = async () => getLS(LS_PROJECT);
 
 export const createProject = async (data) => {
-  try {
-    if (isLocal) return (await api.post('/projects', data)).data;
-  } catch {}
-
   const list = getLS(LS_PROJECT);
   const newItem = {
     id: Date.now(),
@@ -39,31 +32,23 @@ export const createProject = async (data) => {
 };
 
 export const updateProject = async (id, data) => {
-  try {
-    if (isLocal) return (await api.put(`/projects/${id}`, data)).data;
-  } catch {}
-
   const list = getLS(LS_PROJECT);
-  const updated = list.map((i) => (i.id === id ? { ...i, ...data } : i));
-  setLS(LS_PROJECT, updated);
-  return true;
+  setLS(
+    LS_PROJECT,
+    list.map((p) => (p.id === id ? { ...p, ...data } : p))
+  );
 };
 
 export const deleteProject = async (id) => {
-  try {
-    if (isLocal) return (await api.delete(`/projects/${id}`)).data;
-  } catch {}
-
-  const list = getLS(LS_PROJECT).filter((i) => i.id !== id);
-  setLS(LS_PROJECT, list);
-  return true;
+  setLS(
+    LS_PROJECT,
+    getLS(LS_PROJECT).filter((p) => p.id !== id)
+  );
 };
 
-// ── VERSIONS ─────────────────────────────
-export const getVersions = async (projectId) => {
-  const list = getLS(LS_VERSION);
-  return list.filter((v) => v.projectId === Number(projectId));
-};
+// ── VERSION ─────────────────────────
+export const getVersions = async (projectId) =>
+  getLS(LS_VERSION).filter((v) => v.projectId === Number(projectId));
 
 export const createVersion = async (projectId, data) => {
   const list = getLS(LS_VERSION);
@@ -72,46 +57,29 @@ export const createVersion = async (projectId, data) => {
     projectId: Number(projectId),
     name: data.name,
   };
-  const updated = [...list, newItem];
-  setLS(LS_VERSION, updated);
+  setLS(LS_VERSION, [...list, newItem]);
   return newItem;
 };
 
 export const updateVersion = async (id, data) => {
-  const list = getLS(LS_VERSION);
-  const updated = list.map((v) =>
-    v.id === id ? { ...v, ...data } : v
+  setLS(
+    LS_VERSION,
+    getLS(LS_VERSION).map((v) =>
+      v.id === id ? { ...v, ...data } : v
+    )
   );
-  setLS(LS_VERSION, updated);
-  return true;
 };
 
 export const deleteVersion = async (id) => {
-  const list = getLS(LS_VERSION).filter((v) => v.id !== id);
-  setLS(LS_VERSION, list);
-  return true;
+  setLS(
+    LS_VERSION,
+    getLS(LS_VERSION).filter((v) => v.id !== id)
+  );
 };
 
-// ── DASHBOARD ─────────────────────────────
-export const getDashboard = async () => {
-  const projects = getLS(LS_PROJECT);
-  const versions = getLS(LS_VERSION);
-
-  return {
-    projects,
-    stats: {
-      totalProjects: projects.length,
-      totalVersions: versions.length,
-    },
-  };
-};
-// ── BUILDS ─────────────────────────────
-const LS_BUILD = 'qc_builds';
-
-export const getBuilds = async (versionId) => {
-  const list = getLS(LS_BUILD);
-  return list.filter((b) => b.versionId === Number(versionId));
-};
+// ── BUILD ─────────────────────────
+export const getBuilds = async (versionId) =>
+  getLS(LS_BUILD).filter((b) => b.versionId === Number(versionId));
 
 export const createBuild = async (versionId, data) => {
   const list = getLS(LS_BUILD);
@@ -120,28 +88,28 @@ export const createBuild = async (versionId, data) => {
     versionId: Number(versionId),
     name: data.name,
   };
-  const updated = [...list, newItem];
-  setLS(LS_BUILD, updated);
+  setLS(LS_BUILD, [...list, newItem]);
   return newItem;
 };
 
 export const updateBuild = async (id, data) => {
-  const list = getLS(LS_BUILD);
-  const updated = list.map((b) =>
-    b.id === id ? { ...b, ...data } : b
+  setLS(
+    LS_BUILD,
+    getLS(LS_BUILD).map((b) =>
+      b.id === id ? { ...b, ...data } : b
+    )
   );
-  setLS(LS_BUILD, updated);
-  return true;
 };
 
 export const deleteBuild = async (id) => {
-  const list = getLS(LS_BUILD).filter((b) => b.id !== id);
-  setLS(LS_BUILD, list);
-  return true;
+  setLS(
+    LS_BUILD,
+    getLS(LS_BUILD).filter((b) => b.id !== id)
+  );
 };
-export const copyBuild = async (id) => {
-  const list = getLS('qc_builds');
 
+export const copyBuild = async (id) => {
+  const list = getLS(LS_BUILD);
   const original = list.find((b) => b.id === id);
   if (!original) return null;
 
@@ -151,8 +119,64 @@ export const copyBuild = async (id) => {
     name: original.name + ' (Copy)',
   };
 
-  const updated = [...list, newItem];
-  setLS('qc_builds', updated);
-
+  setLS(LS_BUILD, [...list, newItem]);
   return newItem;
+};
+
+// ── TEST CASE ─────────────────────────
+export const getTestCases = async (buildId) =>
+  getLS(LS_TC).filter((t) => t.buildId === Number(buildId));
+
+export const createTestCase = async (buildId, data) => {
+  const list = getLS(LS_TC);
+  const newItem = {
+    id: Date.now(),
+    buildId: Number(buildId),
+    ...data,
+  };
+  setLS(LS_TC, [...list, newItem]);
+  return newItem;
+};
+
+export const updateTestCase = async (id, data) => {
+  setLS(
+    LS_TC,
+    getLS(LS_TC).map((t) =>
+      t.id === id ? { ...t, ...data } : t
+    )
+  );
+};
+
+export const deleteTestCase = async (id) => {
+  setLS(
+    LS_TC,
+    getLS(LS_TC).filter((t) => t.id !== id)
+  );
+};
+
+export const importTestCases = async (buildId, testCases) => {
+  const list = getLS(LS_TC);
+  const mapped = testCases.map((t) => ({
+    id: Date.now() + Math.random(),
+    buildId: Number(buildId),
+    ...t,
+  }));
+  setLS(LS_TC, [...list, ...mapped]);
+};
+
+// ── JIRA (FAKE) ─────────────────────────
+export const createJiraIssue = async () => {
+  alert('Fake Jira created ✅');
+};
+
+export const sendBugsToJira = async () => {
+  alert('Sent bugs to Jira ✅');
+};
+
+// ── DASHBOARD ─────────────────────────
+export const getDashboard = async () => {
+  return {
+    projects: getLS(LS_PROJECT),
+    stats: {},
+  };
 };
