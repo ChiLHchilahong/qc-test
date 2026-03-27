@@ -83,3 +83,22 @@ export const deleteProject = async (id) => {
   saveLocalProjects(updated);
   return true;
 };
+// ── Dashboard ─────────────────────────────────────────────
+export const getDashboard = async () => {
+  try {
+    if (window.location.hostname === 'localhost') {
+      const res = await api.get('/reports/dashboard');
+      return res.data;
+    }
+  } catch (e) {}
+
+  // fallback local fake data
+  return {
+    projects: [],
+    stats: {
+      total: 0,
+      passed: 0,
+      failed: 0,
+    },
+  };
+};
