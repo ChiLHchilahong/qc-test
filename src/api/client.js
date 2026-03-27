@@ -105,3 +105,37 @@ export const getDashboard = async () => {
     },
   };
 };
+// ── BUILDS ─────────────────────────────
+const LS_BUILD = 'qc_builds';
+
+export const getBuilds = async (versionId) => {
+  const list = getLS(LS_BUILD);
+  return list.filter((b) => b.versionId === Number(versionId));
+};
+
+export const createBuild = async (versionId, data) => {
+  const list = getLS(LS_BUILD);
+  const newItem = {
+    id: Date.now(),
+    versionId: Number(versionId),
+    name: data.name,
+  };
+  const updated = [...list, newItem];
+  setLS(LS_BUILD, updated);
+  return newItem;
+};
+
+export const updateBuild = async (id, data) => {
+  const list = getLS(LS_BUILD);
+  const updated = list.map((b) =>
+    b.id === id ? { ...b, ...data } : b
+  );
+  setLS(LS_BUILD, updated);
+  return true;
+};
+
+export const deleteBuild = async (id) => {
+  const list = getLS(LS_BUILD).filter((b) => b.id !== id);
+  setLS(LS_BUILD, list);
+  return true;
+};
