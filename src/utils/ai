@@ -1,0 +1,40 @@
+export const generateTestCases = async (content) => {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer YOUR_API_KEY",
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "Bạn là QC expert, convert tài liệu thành test case",
+        },
+        {
+          role: "user",
+          content: `
+Convert nội dung sau thành JSON test cases:
+
+${content}
+
+Format:
+[
+  {
+    "feature": "",
+    "description": "",
+    "steps": "",
+    "expected": ""
+  }
+]
+          `,
+        },
+      ],
+    }),
+  });
+
+  const data = await res.json();
+
+  return JSON.parse(data.choices[0].message.content);
+};

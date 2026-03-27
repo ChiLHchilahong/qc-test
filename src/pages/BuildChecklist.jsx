@@ -1,3 +1,5 @@
+import { readDocx, readPDF } from "../utils/fileReader";
+import { generateTestCases } from "../utils/ai";
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
@@ -248,6 +250,48 @@ export default function BuildChecklist() {
     setEditCell(null);
   }
   function handleImport(rows) {
+    // ✅ AI IMPORT DOC/PDF
+const handleImportAI = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  let text = "";
+
+  try {
+    if (file.name.endsWith(".docx")) {
+      text = await readDocx(file);
+    } else if (file.name.endsWith(".pdf")) {
+      text = await readPDF(file);
+    } else {
+      alert("Chỉ hỗ trợ PDF hoặc DOCX");
+      return;
+    }
+
+    const aiData = await generateTestCases(text);
+
+    const mapped = aiData.map((t) => ({
+      feature: t.feature,
+      description: t.description,
+      testToPerform: t.steps,
+      testStatus: "To Do",
+      result: "Not Run",
+      issue: "",
+      note: "",
+    }));
+
+    setImportLoading(true);
+
+    await importTestCases(buildId, mapped);
+
+    fetchAll();
+    alert("✅ Import AI thành công!");
+  } catch (err) {
+    console.error(err);
+    alert("❌ Lỗi AI import");
+  } finally {
+    setImportLoading(false);
+  }
+};
     setImportLoading(true);
     importTestCases(buildId, rows).then(() => { fetchAll(); setShowImport(false); }).catch((e) => alert('Import lỗi: ' + e.message)).finally(() => setImportLoading(false));
   }
