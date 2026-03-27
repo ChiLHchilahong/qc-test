@@ -10,7 +10,6 @@ export default function Projects() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -20,7 +19,18 @@ export default function Projects() {
   const fetchProjects = useCallback(() => {
     setLoading(true);
     getProjects()
-      .then((res) => setProjects(res))
+      .then((res) => {
+        console.log("API res:", res);
+
+        // 🔥 FIX CHÍNH Ở ĐÂY
+        const data = Array.isArray(res)
+          ? res
+          : Array.isArray(res?.data)
+          ? res.data
+          : [];
+
+        setProjects(data);
+      })
       .catch((err) => setError(err.message || 'Failed to load projects'))
       .finally(() => setLoading(false));
   }, []);
@@ -101,9 +111,11 @@ export default function Projects() {
       </div>
 
       {/* Grid */}
-      {projects.length === 0 ? (
+      {!Array.isArray(projects) || projects.length === 0 ? (
         <div className="text-center py-20">
-          <p className="text-gray-400 text-lg">No projects yet. Create one to get started.</p>
+          <p className="text-gray-400 text-lg">
+            No projects yet. Create one to get started.
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -137,15 +149,12 @@ export default function Projects() {
         onConfirm={handleCreate}
         confirmText="Create"
       >
-        <label className="block text-sm font-medium text-gray-700 mb-1">Project Name</label>
         <input
           type="text"
           value={nameInput}
           onChange={(e) => setNameInput(e.target.value)}
           placeholder="Enter project name"
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          autoFocus
-          onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2"
         />
       </Modal>
 
@@ -157,15 +166,11 @@ export default function Projects() {
         onConfirm={handleRename}
         confirmText="Save"
       >
-        <label className="block text-sm font-medium text-gray-700 mb-1">Project Name</label>
         <input
           type="text"
           value={nameInput}
           onChange={(e) => setNameInput(e.target.value)}
-          placeholder="Enter new name"
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          autoFocus
-          onKeyDown={(e) => e.key === 'Enter' && handleRename()}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2"
         />
       </Modal>
 
@@ -178,9 +183,9 @@ export default function Projects() {
         confirmText="Delete"
         confirmVariant="danger"
       >
-        <p className="text-gray-600">
-          Are you sure you want to delete <strong>{selectedProject?.name}</strong>? This action
-          cannot be undone.
+        <p>
+          Are you sure you want to delete{' '}
+          <strong>{selectedProject?.name}</strong>?
         </p>
       </Modal>
     </div>

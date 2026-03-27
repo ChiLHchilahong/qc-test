@@ -51,3 +51,14 @@
 .badge-in-progress {
   @apply bg-primary/10 text-primary font-medium px-2 py-0.5 rounded-full text-xs;
 }
+
+/* Fix mobile viewport black/white space */
+html, body, #root {
+  height: 100%;
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+  overflow-x: hidden;
+}
+body {
+  -webkit-text-size-adjust: 100%;
+}
