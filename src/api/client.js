@@ -139,3 +139,20 @@ export const deleteBuild = async (id) => {
   setLS(LS_BUILD, list);
   return true;
 };
+export const copyBuild = async (id) => {
+  const list = getLS('qc_builds');
+
+  const original = list.find((b) => b.id === id);
+  if (!original) return null;
+
+  const newItem = {
+    ...original,
+    id: Date.now(),
+    name: original.name + ' (Copy)',
+  };
+
+  const updated = [...list, newItem];
+  setLS('qc_builds', updated);
+
+  return newItem;
+};
