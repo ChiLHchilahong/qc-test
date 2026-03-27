@@ -180,3 +180,14 @@ export const getDashboard = async () => {
     stats: {},
   };
 };
+// ── JIRA CONFIG ─────────────────────────
+const LS_JIRA = 'qc_jira_config';
+
+export const getJiraConfig = async () => {
+  return JSON.parse(localStorage.getItem(LS_JIRA) || '{}');
+};
+
+export const updateJiraConfig = async (data) => {
+  localStorage.setItem(LS_JIRA, JSON.stringify(data));
+  return true;
+};
