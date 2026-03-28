@@ -8,7 +8,6 @@ import {
   importTestCases, createJiraIssue, sendBugsToJira,
 } from '../api/client';
 import Modal from '../components/Modal';
-import * as XLSX from "xlsx";
 
 const RESULT_CFG = {
   'Not Run': { bg: '#f1f5f9', color: '#64748b', border: '#cbd5e1' },
@@ -126,10 +125,10 @@ function ImportDropZone({ onParsed }) {
         <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>hoặc click để chọn (.xlsx, .xls, .csv)</div>
         <input
           type="file"
-          accept=".xlsx,.xls,.csv"
+          accept=".csv"
           hidden
           onChange={(e) => handleImportFile(e.target.files[0])}
-        />
+        />    
       </div>
       {err && <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '6px 10px', borderRadius: 6, fontSize: 12, marginTop: 6 }}>{err}</div>}
       <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>Cột mẫu: <strong>Feature | Test Case Description | Test To Perform | ?Test | Result | Issue (Jira) | Note</strong></div>
@@ -304,64 +303,52 @@ export default function BuildChecklist() {
 
 
 
-// ✅ FIX FULL IMPORT
 const handleImportFile = async (file) => {
+  if (!file) return;
+
+  const text = await file.text();
+
+  const rows = text.split("\n").map((row) => row.split(","));
+
+  if (rows.length <= 1) {
+    alert("File rỗng");
+    return;
+  }
+
+  const dataRows = rows.slice(1);
+
+  const normalizeTest = (val) => {
+    if (!val) return "To Do";
+    val = val.toLowerCase();
+    if (val.includes("yes")) return "Yes";
+    return "To Do";
+  };
+
+  const normalizeResult = (val) => {
+    if (!val) return "Not Run";
+    val = val.toLowerCase();
+    if (val.includes("pass")) return "Passed";
+    if (val.includes("fail")) return "Failed";
+    return "Not Run";
+  };
+
+  const mapped = dataRows.map((row) => ({
+    feature: row[0] || "",
+    description: row[1] || "",
+    testToPerform: row[2] || "",
+    testStatus: normalizeTest(row[3]),
+    result: normalizeResult(row[4]),
+    issue: row[5] || "",
+    note: row[6] || "",
+  }));
+
   try {
-    const data = await file.arrayBuffer();
-    const workbook = XLSX.read(data);
-
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-    if (!rows || rows.length <= 1) {
-      alert("File không có dữ liệu");
-      return;
-    }
-
-    // 👉 bỏ header
-    const dataRows = rows.slice(1);
-
-    const normalizeTest = (val) => {
-      if (!val) return "To Do";
-      val = val.toString().toLowerCase();
-
-      if (val.includes("yes")) return "Yes";
-      if (val.includes("no")) return "To Do";
-
-      return "To Do";
-    };
-
-    const normalizeResult = (val) => {
-      if (!val) return "Not Run";
-      val = val.toString().toLowerCase();
-
-      if (val.includes("pass")) return "Passed";
-      if (val.includes("fail")) return "Failed";
-      if (val.includes("not")) return "Not Run";
-
-      return "Not Run";
-    };
-
-    // ✅ MAP ĐÚNG A → G
-    const mapped = dataRows.map((row) => ({
-      feature: row[0] || "",
-      description: row[1] || "",
-      testToPerform: row[2] || "",
-      testStatus: normalizeTest(row[3]),
-      result: normalizeResult(row[4]),
-      issue: row[5] || "",
-      note: row[6] || "",
-    }));
-
     setImportLoading(true);
-
     await importTestCases(buildId, mapped);
-
     fetchAll();
-
     alert("✅ Import thành công!");
-  } catch (err) {
-    console.error(err);
+  } catch (e) {
+    console.error(e);
     alert("❌ Import lỗi");
   } finally {
     setImportLoading(false);
