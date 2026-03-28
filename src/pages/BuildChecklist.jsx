@@ -357,20 +357,32 @@ export default function BuildChecklist() {
   const handleUpdateTestStatus = async (tc, newStatus) => {
     try {
       const updateData = {
-        test_status: newStatus, // ✅ đúng field của bạn
+        test_status: newStatus,
       };
 
-      // 🔥 bonus: auto set result
-      if (newStatus === "Yes") {
-        updateData.result = "Passed";
+      // 👉 nếu No → reset result
+      if (newStatus === "No") {
+        updateData.result = "Not Run";
       }
 
       await updateTestCase(tc.id, updateData);
 
-      fetchAll(); // reload lại list
+      fetchAll();
+    } catch (e) {
+      alert("Update lỗi");
+    }
+  };
+
+  const handleUpdateResult = async (tc, newResult) => {
+    try {
+      await updateTestCase(tc.id, {
+        result: newResult,
+      });
+
+      fetchAll();
     } catch (e) {
       console.error(e);
-      alert("Update test status lỗi");
+      alert("Update result lỗi");
     }
   };
 
@@ -499,20 +511,31 @@ export default function BuildChecklist() {
                   {COLS.map((col) => {
                     const isEditing = editCell?.id === tc.id && editCell?.field === col.key;
                     if (col.type === 'result') return (
-                      <td key={col.key} className="px-3 py-2"><ResultBadge result={tc.result || 'Not Run'} onClick={() => cycleResult(tc)} /></td>
+                      <td key={col.key} className="px-3 py-2">
+                        <select
+                          value={tc.result || "Not Run"}
+                          onChange={(e) => handleUpdateResult(tc, e.target.value)}
+                          className="border rounded px-2 py-1"
+                        >
+                          <option value="Passed">Passed</option>
+                          <option value="Failed">Failed</option>
+                          <option value="Blocked">Blocked</option>
+                          <option value="Not Run">Not Run</option>
+                        </select>
+
+                        </td>
                     );
                     if (col.type === 'status') {
                       const scfg = STATUS_CFG[tc.test_status] || STATUS_CFG['To Do'];
                       return (
                         <td key={col.key} className="px-3 py-2">
                           <select
-                            value={tc.test_status || "To Do"}
+                            value={tc.test_status || "No"}
                             onChange={(e) => handleUpdateTestStatus(tc, e.target.value)}
                             className="border rounded px-2 py-1"
                           >
-                            <option value="To Do">To Do</option>
-                            <option value="In Progress">In Progress</option>
                             <option value="Yes">Yes</option>
+                            <option value="No">No</option>
                           </select>
                         </td>
                       );
