@@ -422,6 +422,8 @@ export default function BuildChecklist() {
   const [newTC, setNewTC] = useState({ feature: '', description: '', testToPerform: '' });
   const [editCell, setEditCell] = useState(null);
   const [editVal, setEditVal] = useState('');
+  const [showJiraModal, setShowJiraModal] = useState(false);
+  const [jiraBug, setJiraBug] = useState({ summary: '', description: '', priority: 'Medium', type: 'Bug' });
 
   const fetchAll = useCallback(() => {
     setLoading(true);
@@ -490,7 +492,18 @@ export default function BuildChecklist() {
   };
 
   const handleOpenJira = () => {
-    window.open('https://jira-mps.mto.zing.vn/secure/CreateIssue!default.jspa', '_blank');
+    setShowJiraModal(true);
+  };
+
+  const handleSubmitJira = () => {
+    const url = new URL('https://jira-mps.mto.zing.vn/secure/CreateIssue!default.jspa');
+    url.searchParams.append('summary', jiraBug.summary);
+    url.searchParams.append('description', jiraBug.description);
+    url.searchParams.append('priority', jiraBug.priority);
+    url.searchParams.append('type', jiraBug.type);
+    window.open(url.toString(), '_blank');
+    setShowJiraModal(false);
+    setJiraBug({ summary: '', description: '', priority: 'Medium', type: 'Bug' });
   };
 
   const stats = {
@@ -679,6 +692,67 @@ export default function BuildChecklist() {
       </Modal>
 
       {showReport && <ReportModal testCases={testCases} meta={meta} onClose={() => setShowReport(false)} />}
+
+      {/* Jira Modal */}
+      {showJiraModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 500, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,.25)' }}>
+            {/* Header */}
+            <div style={{ background: 'linear-gradient(135deg,#0052cc,#003da5)', padding: '18px 24px', color: '#fff', flexShrink: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>🐛 Tạo Bug Jira</div>
+              <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{meta.project} — {meta.version}</div>
+            </div>
+
+            <div style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
+              <div className="space-y-4">
+                {/* Summary */}
+                <div>
+                  <label style={{ fontSize: 13, color: '#64748b', display: 'block', marginBottom: 6, fontWeight: 600 }}>Summary *</label>
+                  <input value={jiraBug.summary} onChange={(e) => setJiraBug((p) => ({ ...p, summary: e.target.value }))} placeholder="Tiêu đề bug" 
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2" style={{ fontSize: 13 }} />
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label style={{ fontSize: 13, color: '#64748b', display: 'block', marginBottom: 6, fontWeight: 600 }}>Description</label>
+                  <textarea value={jiraBug.description} onChange={(e) => setJiraBug((p) => ({ ...p, description: e.target.value }))} placeholder="Mô tả chi tiết lỗi..."
+                    rows={4} className="w-full border border-gray-300 rounded-lg px-3 py-2" style={{ fontSize: 13, resize: 'vertical' }} />
+                </div>
+
+                {/* Priority */}
+                <div>
+                  <label style={{ fontSize: 13, color: '#64748b', display: 'block', marginBottom: 6, fontWeight: 600 }}>Priority</label>
+                  <select value={jiraBug.priority} onChange={(e) => setJiraBug((p) => ({ ...p, priority: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2" style={{ fontSize: 13 }}>
+                    <option value="Lowest">Lowest</option>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Highest">Highest</option>
+                  </select>
+                </div>
+
+                {/* Type */}
+                <div>
+                  <label style={{ fontSize: 13, color: '#64748b', display: 'block', marginBottom: 6, fontWeight: 600 }}>Type</label>
+                  <select value={jiraBug.type} onChange={(e) => setJiraBug((p) => ({ ...p, type: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2" style={{ fontSize: 13 }}>
+                    <option value="Bug">Bug</option>
+                    <option value="Task">Task</option>
+                    <option value="Story">Story</option>
+                    <option value="Epic">Epic</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: '12px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 10, justifyContent: 'flex-end', flexShrink: 0 }}>
+              <button onClick={() => { setShowJiraModal(false); setJiraBug({ summary: '', description: '', priority: 'Medium', type: 'Bug' }); }} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Hủy</button>
+              <button onClick={handleSubmitJira} disabled={!jiraBug.summary.trim()} style={{ background: !jiraBug.summary.trim() ? '#cbd5e1' : '#0052cc', color: '#fff', cursor: !jiraBug.summary.trim() ? 'not-allowed' : 'pointer' }} className="px-4 py-2 rounded-lg text-sm font-medium">Tạo Bug</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
