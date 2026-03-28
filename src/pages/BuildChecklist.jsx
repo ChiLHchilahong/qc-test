@@ -10,7 +10,7 @@ import {
 import Modal from '../components/Modal';
 
 
-const fileInputRef = useRef(null);
+
 
 const RESULT_CFG = {
   'Not Run': { bg: '#f1f5f9', color: '#64748b', border: '#cbd5e1' },
@@ -214,6 +214,7 @@ function ReportModal({ testCases, meta, onClose }) {
 }
 
 export default function BuildChecklist() {
+  const fileInputRef = useRef(null);
   const { projectId, versionId, buildId } = useParams();
   const [testCases, setTestCases] = useState([]);
   const [projectName, setProjectName] = useState('');
