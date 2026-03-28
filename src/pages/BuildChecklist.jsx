@@ -490,14 +490,14 @@ export default function BuildChecklist() {
                           </select>
                         </td>
                       );
-                    }
+                    };
                     if (col.type === 'issue') {
                       return (
                         <td onClick={() => handleCreateJira(tc)} className="cursor-pointer text-blue-500 underline">
                           {tc.issue || "Create Bug"}
                         </td>
                       );
-                    }
+                    };
                     return (
                       <td key={col.key} className="px-3 py-1">
                         {isEditing ? (
@@ -512,7 +512,7 @@ export default function BuildChecklist() {
                   })}
                   <td className="px-3 py-2 whitespace-nowrap">
                     <div className="flex gap-1">
-                      {tc.result === 'Failed' && !tc.issue && <button onClick={() => setJiraTc(tc)} className="text-xs px-2 py-1 rounded bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 font-semibold" title="Tạo bug Jira">🐛 Jira</button>}
+                      {(tc.result === 'Failed' || tc.result === 'Warning') && !tc.issue && <button onClick={() => handleCreateJira(tc)} className="text-xs px-2 py-1 rounded bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 font-semibold" title="Tạo bug Jira">🐛 Jira</button>}
                       <button onClick={() => handleDelete(tc.id)} className="text-xs px-2 py-1 rounded bg-gray-50 text-gray-500 border border-gray-200 hover:bg-red-50 hover:text-red-600">✕</button>
                     </div>
                   </td>
