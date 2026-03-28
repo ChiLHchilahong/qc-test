@@ -40,6 +40,50 @@ async function loadXLSX() {
   });
 }
 
+// CSV Parser - xử lý quoted fields đúng cách
+function parseCSV(text) {
+  const rows = [];
+  let currentRow = [];
+  let currentField = '';
+  let insideQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+
+    if (char === '"') {
+      if (insideQuotes && nextChar === '"') {
+        // Escaped quote
+        currentField += '"';
+        i++;
+      } else {
+        // Toggle quote state
+        insideQuotes = !insideQuotes;
+      }
+    } else if (char === ',' && !insideQuotes) {
+      currentRow.push(currentField.trim());
+      currentField = '';
+    } else if ((char === '\n' || char === '\r') && !insideQuotes) {
+      if (currentField || currentRow.length > 0) {
+        currentRow.push(currentField.trim());
+        if (currentRow.some(f => f)) rows.push(currentRow);
+        currentRow = [];
+        currentField = '';
+      }
+      if (char === '\r' && nextChar === '\n') i++;
+    } else {
+      currentField += char;
+    }
+  }
+
+  if (currentField || currentRow.length > 0) {
+    currentRow.push(currentField.trim());
+    if (currentRow.some(f => f)) rows.push(currentRow);
+  }
+
+  return rows;
+}
+
 async function parseFileToRows(file) {
   const XLSX = await loadXLSX();
   const buf = await file.arrayBuffer();
@@ -50,7 +94,7 @@ async function parseFileToRows(file) {
     feature:       r['Feature'] || r['feature'] || r['Module'] || '',
     description:   r['Test Case Description'] || r['Descriptions'] || r['description'] || r['Title'] || '',
     testToPerform: r['Test To Perform'] || r['testToPerform'] || r['Steps'] || '',
-    testStatus:    r['?Test'] || r['Test Status'] || 'To Do',
+    testStatus:    r['?Test'] || r['Test Status'] || 'Yes',
     result:        r['Result'] || r['result'] || 'Not Run',
     issue:         r['Issue (Jira)'] || r['Issue'] || r['issue'] || '',
     note:          r['Note'] || r['note'] || '',
@@ -236,7 +280,7 @@ function ImportDropZone({ onParsed }) {
       let rows;
       if (file.name.endsWith('.csv')) {
         const text = await file.text();
-        const lines = text.split('\n').map((r) => r.split(','));
+        const lines = parseCSV(text);
         if (lines.length <= 1) { setErr('File rỗng'); return; }
         rows = lines.slice(1).map((r) => ({
           feature: r[0]||'', description: r[1]||'', testToPerform: r[2]||'',
@@ -255,13 +299,13 @@ function ImportDropZone({ onParsed }) {
     <div>
       <div onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
-        onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handle(f); }}
+        onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) { handle(f); e.dataTransfer.items.clear(); } }}
         onClick={() => ref.current.click()}
         style={{ border: '2px dashed ' + (dragging ? '#3b82f6' : '#cbd5e1'), borderRadius: 10, padding: '22px', textAlign: 'center', cursor: 'pointer', background: dragging ? '#eff6ff' : '#f8fafc' }}>
         <div style={{ fontSize: 28, marginBottom: 6 }}>📂</div>
         <div style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>Kéo thả file Excel / CSV vào đây</div>
         <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>hoặc click để chọn (.xlsx, .xls, .csv)</div>
-        <input ref={ref} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={(e) => { if (e.target.files[0]) handle(e.target.files[0]); }} />
+        <input ref={ref} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={(e) => { if (e.target.files[0]) { handle(e.target.files[0]); ref.current.value = ''; } }} />
       </div>
       {err && <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '6px 10px', borderRadius: 6, fontSize: 12, marginTop: 6 }}>{err}</div>}
       <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>
