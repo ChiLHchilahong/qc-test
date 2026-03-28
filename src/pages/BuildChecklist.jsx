@@ -559,7 +559,115 @@ export default function BuildChecklist() {
       script.onerror = reject;
       document.head.appendChild(script);
     });
-  }\n\n  async function parsePDF(file) {\n    try {\n      const arrayBuffer = await file.arrayBuffer();\n      const pdfjsLib = await loadPDFLib();\n      if (!pdfjsLib.getDocument) throw new Error('PDF library không load được');\n      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;\n      let text = '';\n      for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) {\n        const page = await pdf.getPage(i);\n        const textContent = await page.getTextContent();\n        text += textContent.items.map(item => item.str).join(' ') + '\\n';\n      }\n      return text;\n    } catch (e) {\n      throw new Error('Lỗi parse PDF: ' + e.message);\n    }\n  }\n\n  async function parseDOCX(file) {\n    try {\n      const arrayBuffer = await file.arrayBuffer();\n      if (!window.mammoth) {\n        throw new Error('Mammoth library chưa load');\n      }\n      const result = await window.mammoth.extractRawText({ arrayBuffer });\n      return result.value;\n    } catch (e) {\n      throw new Error('Lỗi parse DOCX: ' + e.message);\n    }\n  }\n\n  async function handleAIFileUpload(file) {\n    try {\n      setAiGenLoading(true);\n      let content = '';\n      if (file.name.endsWith('.pdf')) {\n        content = await parsePDF(file);\n      } else if (file.name.endsWith('.docx')) {\n        if (!window.mammoth) {\n          const script = document.createElement('script');\n          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.min.js';\n          await new Promise((resolve, reject) => {\n            script.onload = resolve;\n            script.onerror = reject;\n            document.head.appendChild(script);\n          });\n        }\n        content = await parseDOCX(file);\n      } else {\n        alert('Chỉ hỗ trợ file PDF hoặc DOCX');\n        return;\n      }\n      setFileContent(content.substring(0, 3000));\n      alert('✅ File đã được load! Giờ nhập prompt và click Generate');\n    } catch (e) {\n      alert('Lỗi: ' + e.message);\n    } finally {\n      setAiGenLoading(false);\n    }\n  }\n\n  async function generateTestCases() {\n    if (!fileContent.trim()) {\n      alert('Vui lòng import file trước!');\n      return;\n    }\n    if (!aiPrompt.trim()) {\n      alert('Vui lòng nhập prompt!');\n      return;\n    }\n\n    setAiGenLoading(true);\n    try {\n      const prompt = `Bạn là QA automation engineer. Hãy phân tích tài liệu dưới đây và tạo test cases.\n\nTài liệu:\n${fileContent}\n\nYêu cầu: ${aiPrompt}\n\nHãy tạo test cases theo format JSON array (chỉ trả về JSON, không có text khác):\n[\n  {\n    \"feature\": \"Feature name\",\n    \"description\": \"Test description\",\n    \"testToPerform\": \"Steps\",\n    \"testStatus\": \"Yes\",\n    \"result\": \"Not Run\",\n    \"note\": \"Notes\"\n  }\n]`;\n\n      const res = await fetch('https://api.anthropic.com/v1/messages', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({\n          model: 'claude-sonnet-4-20250514',\n          max_tokens: 2000,\n          messages: [{ role: 'user', content: prompt }]\n        }),\n      });\n\n      const data = await res.json();\n      if (!data.content || !data.content[0]) {\n        throw new Error('Không có phản hồi từ AI');\n      }\n\n      const text = data.content[0].text;\n      const jsonMatch = text.match(/\\[\\s*\\{[\\s\\S]*\\}\\s*\\]/);\n      if (!jsonMatch) {\n        throw new Error('Không thể parse response từ AI');\n      }\n\n      const testCases = JSON.parse(jsonMatch[0]);\n      handleImport(testCases);\n      setShowAIModal(false);\n      setAiPrompt('');\n      setFileContent('');\n    } catch (e) {\n      alert('Lỗi AI: ' + e.message);\n    } finally {\n      setAiGenLoading(false);\n    }\n  }
+  }
+
+  async function parsePDF(file) {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdfjsLib = await loadPDFLib();
+      if (!pdfjsLib.getDocument) throw new Error('PDF library không load được');
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let text = '';
+      for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        text += textContent.items.map(item => item.str).join(' ') + '\n';
+      }
+      return text;
+    } catch (e) {
+      throw new Error('Lỗi parse PDF: ' + e.message);
+    }
+  }
+
+  async function parseDOCX(file) {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      if (!window.mammoth) {
+        throw new Error('Mammoth library chưa load');
+      }
+      const result = await window.mammoth.extractRawText({ arrayBuffer });
+      return result.value;
+    } catch (e) {
+      throw new Error('Lỗi parse DOCX: ' + e.message);
+    }
+  }
+
+  async function handleAIFileUpload(file) {
+    try {
+      setAiGenLoading(true);
+      let content = '';
+      if (file.name.endsWith('.pdf')) {
+        content = await parsePDF(file);
+      } else if (file.name.endsWith('.docx')) {
+        if (!window.mammoth) {
+          const script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.min.js';
+          await new Promise((resolve, reject) => {
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+        }
+        content = await parseDOCX(file);
+      } else {
+        alert('Chỉ hỗ trợ file PDF hoặc DOCX');
+        return;
+      }
+      setFileContent(content.substring(0, 3000));
+      alert('✅ File đã được load! Giờ nhập prompt và click Generate');
+    } catch (e) {
+      alert('Lỗi: ' + e.message);
+    } finally {
+      setAiGenLoading(false);
+    }
+  }
+
+  async function generateTestCases() {
+    if (!fileContent.trim()) {
+      alert('Vui lòng import file trước!');
+      return;
+    }
+    if (!aiPrompt.trim()) {
+      alert('Vui lòng nhập prompt!');
+      return;
+    }
+
+    setAiGenLoading(true);
+    try {
+      const prompt = `Bạn là QA automation engineer. Hãy phân tích tài liệu dưới đây và tạo test cases.\n\nTài liệu:\n${fileContent}\n\nYêu cầu: ${aiPrompt}\n\nHãy tạo test cases theo format JSON array (chỉ trả về JSON, không có text khác):\n[\n  {\n    "feature": "Feature name",\n    "description": "Test description",\n    "testToPerform": "Steps",\n    "testStatus": "Yes",\n    "result": "Not Run",\n    "note": "Notes"\n  }\n]`;
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2000,
+          messages: [{ role: 'user', content: prompt }]
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.content || !data.content[0]) {
+        throw new Error('Không có phản hồi từ AI');
+      }
+
+      const text = data.content[0].text;
+      const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+      if (!jsonMatch) {
+        throw new Error('Không thể parse response từ AI');
+      }
+
+      const testCases = JSON.parse(jsonMatch[0]);
+      handleImport(testCases);
+      setShowAIModal(false);
+      setAiPrompt('');
+      setFileContent('');
+    } catch (e) {
+      alert('Lỗi AI: ' + e.message);
+    } finally {
+      setAiGenLoading(false);
+    }
+  }
 
   const handleSubmitJira = () => {
     const url = new URL('https://jira-mps.mto.zing.vn/secure/CreateIssue!default.jspa');
