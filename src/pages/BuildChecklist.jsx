@@ -645,7 +645,11 @@ export default function BuildChecklist() {
                       </td>
                     );
                   })}
-                  <td className="px-3 py-2 whitespace-nowrap">
+                  <td className="px-3 py-2 whitespace-nowrap flex gap-1">
+                    {tc.result === 'Failed' && (
+                      <button onClick={() => window.open('https://jira-mps.mto.zing.vn/secure/CreateIssue!default.jspa', '_blank')}
+                        className="text-xs px-2 py-1 rounded bg-orange-100 text-orange-600 border border-orange-300 hover:bg-orange-200 font-medium">🐛 Jira</button>
+                    )}
                     <button onClick={() => handleDelete(tc.id)}
                       className="text-xs px-2 py-1 rounded bg-gray-50 text-gray-500 border border-gray-200 hover:bg-red-50 hover:text-red-600">✕</button>
                   </td>
