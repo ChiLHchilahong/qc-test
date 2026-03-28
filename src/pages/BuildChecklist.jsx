@@ -251,50 +251,91 @@ export default function BuildChecklist() {
   }
   function handleImport(rows) {
     // ✅ AI IMPORT DOC/PDF
-const handleImportAI = async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
+    const handleImportAI = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
 
-  let text = "";
+      let text = "";
 
-  try {
-    if (file.name.endsWith(".docx")) {
-      text = await readDocx(file);
-    } else if (file.name.endsWith(".pdf")) {
-      text = await readPDF(file);
-    } else {
-      alert("Chỉ hỗ trợ PDF hoặc DOCX");
-      return;
-    }
+      try {
+        if (file.name.endsWith(".docx")) {
+          text = await readDocx(file);
+        } else if (file.name.endsWith(".pdf")) {
+          text = await readPDF(file);
+        } else {
+          alert("Chỉ hỗ trợ PDF hoặc DOCX");
+          return;
+        }
 
-    const aiData = await generateTestCases(text);
+        const aiData = await generateTestCases(text);
 
-    const mapped = aiData.map((t) => ({
-      feature: t.feature,
-      description: t.description,
-      testToPerform: t.steps,
-      testStatus: "To Do",
-      result: "Not Run",
-      issue: "",
-      note: "",
-    }));
+        const mapped = aiData.map((t) => ({
+          feature: t.feature,
+          description: t.description,
+          testToPerform: t.steps,
+          testStatus: "To Do",
+          result: "Not Run",
+          issue: "",
+          note: "",
+        }));
 
-    setImportLoading(true);
+        setImportLoading(true);
 
-    await importTestCases(buildId, mapped);
+        await importTestCases(buildId, mapped);
 
-    fetchAll();
-    alert("✅ Import AI thành công!");
-  } catch (err) {
-    console.error(err);
-    alert("❌ Lỗi AI import");
-  } finally {
-    setImportLoading(false);
-  }
-};
+        fetchAll();
+        alert("✅ Import AI thành công!");
+      } catch (err) {
+        console.error(err);
+        alert("❌ Lỗi AI import");
+      } finally {
+        setImportLoading(false);
+      }
+    };
     setImportLoading(true);
     importTestCases(buildId, rows).then(() => { fetchAll(); setShowImport(false); }).catch((e) => alert('Import lỗi: ' + e.message)).finally(() => setImportLoading(false));
   }
+  const exportData = () => {
+  if (!testCases || testCases.length === 0) {
+    alert("Không có data để export");
+    return;
+  }
+
+  const headers = [
+    "Feature",
+    "Test Case Description",
+    "Test To Perform",
+    "Test",
+    "Result",
+    "Issue",
+    "Note",
+  ];
+
+  const rows = testCases.map((t) => [
+    t.feature || "",
+    t.description || "",
+    t.testToPerform || "",
+    t.testStatus || "",
+    t.result || "",
+    t.issue || "",
+    t.note || "",
+  ]);
+
+  const csvContent =
+    [headers, ...rows]
+      .map((e) => e.map((x) => `"${x}"`).join(","))
+      .join("\n");
+
+  const blob = new Blob(["\uFEFF" + csvContent], {
+    type: "text/csv;charset=utf-8;",
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "testcases.csv";
+  a.click();
+};
   function handleJiraCreated(tcId, key) {
     updateTestCase(tcId, { issue: key }).then(() => { fetchAll(); setJiraTc(null); });
   }
@@ -349,6 +390,7 @@ const handleImportAI = async (e) => {
         <button onClick={() => sendBugsToJira(buildId).then(fetchAll).catch((e) => alert(e.message))} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">Send to Jira</button>
         <button onClick={() => setShowReport(true)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">📊 Report</button>
         <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">+ Add Test Case</button>
+        <button onClick={exportData} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2">📁 Export Excel/CSV </button>
       </div>
 
       {showImport && (
