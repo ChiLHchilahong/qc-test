@@ -9,6 +9,9 @@ import {
 } from '../api/client';
 import Modal from '../components/Modal';
 
+
+const fileInputRef = useRef(null);
+
 const RESULT_CFG = {
   'Not Run': { bg: '#f1f5f9', color: '#64748b', border: '#cbd5e1' },
   Passed:    { bg: '#dcfce7', color: '#15803d', border: '#86efac' },
@@ -124,11 +127,12 @@ function ImportDropZone({ onParsed }) {
         <div style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>Kéo thả file Excel / CSV vào đây</div>
         <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>hoặc click để chọn (.xlsx, .xls, .csv)</div>
         <input
+          ref={fileInputRef}
           type="file"
           accept=".csv"
           hidden
           onChange={(e) => handleImportFile(e.target.files[0])}
-        />    
+        />
       </div>
       {err && <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '6px 10px', borderRadius: 6, fontSize: 12, marginTop: 6 }}>{err}</div>}
       <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>Cột mẫu: <strong>Feature | Test Case Description | Test To Perform | ?Test | Result | Issue (Jira) | Note</strong></div>
@@ -403,7 +407,7 @@ export default function BuildChecklist() {
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4">
-        <button onClick={() => setShowImport(!showImport)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">📂 Import Excel/CSV</button>
+        <button onClick={() => fileInputRef.current?.click()} className="bg-purple-600 text-white px-4 py-2 rounded-lg">📁 Import Excel/CSV</button>
         <button onClick={() => sendBugsToJira(buildId).then(fetchAll).catch((e) => alert(e.message))} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">Send to Jira</button>
         <button onClick={() => setShowReport(true)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">📊 Report</button>
         <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">+ Add Test Case</button>
