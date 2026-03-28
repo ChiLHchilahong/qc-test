@@ -311,6 +311,36 @@ export default function BuildChecklist() {
     importTestCases(buildId, rows).then(() => { fetchAll(); setShowImport(false); }).catch((e) => alert('Import lỗi: ' + e.message)).finally(() => setImportLoading(false));
   }
 
+  const handleDeleteAll = async () => {
+    if (!testCases || testCases.length === 0) {
+      alert("Không có test case để xoá");
+      return;
+    }
+
+    const confirmDelete = window.confirm(
+      `Xoá toàn bộ ${testCases.length} test case?`
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      setLoading(true);
+
+      // gọi API xoá từng cái
+      await Promise.all(
+        testCases.map((tc) => deleteTestCase(tc.id))
+      );
+
+      fetchAll();
+
+      alert("✅ Đã xoá toàn bộ test case");
+    } catch (err) {
+      console.error(err);
+      alert("❌ Lỗi khi xoá");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const exportData = () => {
   if (!testCases || testCases.length === 0) {
@@ -408,6 +438,7 @@ export default function BuildChecklist() {
         <button onClick={() => setShowReport(true)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">📊 Report</button>
         <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">+ Add Test Case</button>
         <button onClick={exportData} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2">📁 Export Excel/CSV </button>
+        <button onClick={handleDeleteAll} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2">🗑 Delete All</button>
       </div>
 
       {showImport && (
