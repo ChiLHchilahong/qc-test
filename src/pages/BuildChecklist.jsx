@@ -33,6 +33,15 @@ async function loadXLSX() {
     document.head.appendChild(s);
   });
 }
+const getTestStatusColor = (status) => {
+  if (status === "Yes") {
+    return "bg-green-100 text-green-700 border-green-300";
+  }
+  if (status === "No") {
+    return "bg-orange-100 text-orange-700 border-orange-300";
+  }
+  return "";
+};
 
 async function parseFileToRows(file) {
   const XLSX = await loadXLSX();
@@ -544,7 +553,7 @@ export default function BuildChecklist() {
                           <select
                             value={tc.test_status || "No"}
                             onChange={(e) => handleUpdateTestStatus(tc, e.target.value)}
-                            className="border rounded px-2 py-1 bg-white"
+                            className={`border rounded px-2 py-1 font-medium bg-white ${getTestStatusColor(tc.test_status)}`}
                           >
                             <option value="Yes">Yes</option>
                             <option value="No">No</option>
