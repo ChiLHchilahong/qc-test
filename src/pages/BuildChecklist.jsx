@@ -354,6 +354,26 @@ export default function BuildChecklist() {
     }
   };
 
+  const handleUpdateTestStatus = async (tc, newStatus) => {
+    try {
+      const updateData = {
+        test_status: newStatus, // ✅ đúng field của bạn
+      };
+
+      // 🔥 bonus: auto set result
+      if (newStatus === "Yes") {
+        updateData.result = "Passed";
+      }
+
+      await updateTestCase(tc.id, updateData);
+
+      fetchAll(); // reload lại list
+    } catch (e) {
+      console.error(e);
+      alert("Update test status lỗi");
+    }
+  };
+
   const exportData = () => {
   if (!testCases || testCases.length === 0) {
     alert("Không có data để export");
@@ -485,8 +505,14 @@ export default function BuildChecklist() {
                       const scfg = STATUS_CFG[tc.test_status] || STATUS_CFG['To Do'];
                       return (
                         <td key={col.key} className="px-3 py-2">
-                          <select value={tc.test_status || 'To Do'} onChange={(e) => updateTestCase(tc.id, { testStatus: e.target.value }).then(fetchAll)} style={{ background: scfg.bg, color: scfg.color, border: '1px solid #e2e8f0', padding: '3px 8px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                            {STATUSES.map((s) => <option key={s}>{s}</option>)}
+                          <select
+                            value={tc.test_status || "To Do"}
+                            onChange={(e) => handleUpdateTestStatus(tc, e.target.value)}
+                            className="border rounded px-2 py-1"
+                          >
+                            <option value="To Do">To Do</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Yes">Yes</option>
                           </select>
                         </td>
                       );
