@@ -124,7 +124,12 @@ function ImportDropZone({ onParsed }) {
         <div style={{ fontSize: 28, marginBottom: 6 }}>📂</div>
         <div style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>Kéo thả file Excel / CSV vào đây</div>
         <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>hoặc click để chọn (.xlsx, .xls, .csv)</div>
-        <input ref={ref} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={(e) => { if (e.target.files[0]) handle(e.target.files[0]); }} />
+        <input
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          hidden
+          onChange={(e) => handleImportFile(e.target.files[0])}
+        />
       </div>
       {err && <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '6px 10px', borderRadius: 6, fontSize: 12, marginTop: 6 }}>{err}</div>}
       <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>Cột mẫu: <strong>Feature | Test Case Description | Test To Perform | ?Test | Result | Issue (Jira) | Note</strong></div>
