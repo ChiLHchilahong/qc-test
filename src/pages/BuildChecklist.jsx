@@ -331,12 +331,12 @@ export default function BuildChecklist() {
     importTestCases(buildId, rows).then(() => { fetchAll(); setShowImport(false); }).catch((e) => alert('Import lỗi: ' + e.message)).finally(() => setImportLoading(false));
   }
 
-  const handleCreateJira = (tc) => {
+  const handleCreateJira = () => {
   // 🔥 THAY LINK NÀY = JIRA CỦA BẠN
   const jiraUrl = "https://jira-mps.mto.zing.vn/secure/CreateIssue!default.jspa";
 
-  const summary = encodeURIComponent(tc.description || "Bug từ QC Tool");
-  const desc = encodeURIComponent(tc.testToPerform || "");
+  const summary = encodeURIComponent("Bug từ QC Tool");
+  const desc = encodeURIComponent("");
 
   const fullUrl = `${jiraUrl}?summary=${summary}&description=${desc}`;
 
@@ -498,7 +498,7 @@ export default function BuildChecklist() {
 
       <div className="flex flex-wrap gap-2 mb-4">
         <button onClick={() => setShowImport(!showImport)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">📂 Import Excel/CSV</button>
-        <button onClick={() => handleCreateJira(tc)} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">Send to Jira</button>
+        <button onClick={() => handleCreateJira()} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">Send to Jira</button>
         <button onClick={() => setShowReport(true)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">📊 Report</button>
         <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">+ Add Test Case</button>
         <button onClick={exportData} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2">📁 Export Excel/CSV </button>
