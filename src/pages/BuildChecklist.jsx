@@ -311,6 +311,18 @@ export default function BuildChecklist() {
     importTestCases(buildId, rows).then(() => { fetchAll(); setShowImport(false); }).catch((e) => alert('Import lỗi: ' + e.message)).finally(() => setImportLoading(false));
   }
 
+  const handleCreateJira = (tc) => {
+  // 🔥 THAY LINK NÀY = JIRA CỦA BẠN
+  const jiraUrl = "https://jira-mps.mto.zing.vn/secure/CreateIssue!default.jspa";
+
+  const summary = encodeURIComponent(tc.description || "Bug từ QC Tool");
+  const desc = encodeURIComponent(tc.testToPerform || "");
+
+  const fullUrl = `${jiraUrl}?summary=${summary}&description=${desc}`;
+
+  window.open(fullUrl, "_blank");
+};
+
   const handleDeleteAll = async () => {
     if (!testCases || testCases.length === 0) {
       alert("Không có test case để xoá");
@@ -480,14 +492,8 @@ export default function BuildChecklist() {
                       );
                     }
                     return (
-                      <td key={col.key} className="px-3 py-1">
-                        {isEditing ? (
-                          <input autoFocus value={editVal} onChange={(e) => setEditVal(e.target.value)} onBlur={saveEdit} onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditCell(null); }} className="w-full border border-blue-400 rounded px-2 py-1 text-xs outline-none" style={{ minWidth: col.w - 20 }} />
-                        ) : (
-                          <div onClick={() => { setEditCell({ id: tc.id, field: col.key }); setEditVal(tc[col.key] || ''); }} className="cell-editable px-2 py-1 rounded text-xs min-h-[24px] cursor-text" title="Click để sửa">
-                            {col.key === 'issue' && tc.issue ? <span style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '1px 7px', borderRadius: 4, fontFamily: 'monospace', fontSize: 11 }}>{tc.issue}</span> : (tc[col.key] || <span className="text-gray-300">—</span>)}
-                          </div>
-                        )}
+                      <td onClick={() => handleCreateJira(tc)} className="cursor-pointer text-blue-500 underline">
+                        {tc.issue || "Create Bug"}
                       </td>
                     );
                   })}
