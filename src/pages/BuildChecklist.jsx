@@ -473,7 +473,9 @@ export default function BuildChecklist() {
   const [fileContent, setFileContent] = useState('');
   const [aiGenLoading, setAiGenLoading] = useState(false);
   const [aiApiKey, setAiApiKey] = useState('');
+  const [aiClaudeKey, setAiClaudeKey] = useState('');
   const [aiFileName, setAiFileName] = useState('');
+  const [aiProvider, setAiProvider] = useState('');
   const aiInputRef = useRef();
 
   const fetchAll = useCallback(() => {
@@ -643,51 +645,103 @@ export default function BuildChecklist() {
       alert('Vui lòng nhập prompt!');
       return;
     }
-    if (!aiApiKey.trim()) {
-      alert('❌ Vui lòng nhập OpenAI API key!');
+    if (!aiApiKey.trim() && !aiClaudeKey.trim()) {
+      alert('❌ Vui lòng nhập ít nhất 1 API key (OpenAI hoặc Claude)!');
       return;
     }
 
     setAiGenLoading(true);
     try {
-      const prompt = `Bạn là QA automation engineer. Hãy phân tích tài liệu dưới đây và tạo test cases.\n\nTài liệu:\n${fileContent}\n\nYêu cầu: ${aiPrompt}\n\nHãy tạo test cases theo format JSON array (chỉ trả về JSON, không có text khác):\n[\n  {\n    "feature": "Feature name",\n    "description": "Test description",\n    "testToPerform": "Steps",\n    "testStatus": "Yes",\n    "result": "Not Run",\n    "note": "Notes"\n  }\n]`;
+      const prompt = `Bạn là QA automation engineer. Hãy phân tích tài liệu dưới đây và tạo test cases.\n\nTài liệu:\n${fileContent}\n\nYêu cầu: ${aiPrompt}\n\nHãy tạo test cases theo format JSON array (chỉ trả về JSON, không có text khác):\n[\n  {\n    "feature": "Feature name",\n    "description": "Test description",\n    "testToPerform": "Steps",\n    "testStatus": "Yes",
+    "result": "Not Run",
+    "note": "Notes"\n  }\n]`;
 
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${aiApiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 2000
-        }),
-      });
+      let testCases = null;
+      let provider = '';
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error?.message || 'API error: ' + res.status);
+      // Thử OpenAI trước
+      if (aiApiKey.trim()) {
+        try {
+          const res = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${aiApiKey}`
+            },
+            body: JSON.stringify({
+              model: 'gpt-4o',
+              messages: [{ role: 'user', content: prompt }],
+              max_tokens: 2000
+            }),
+            signal: AbortSignal.timeout(30000)
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.choices?.[0]?.message?.content) {
+              const text = data.choices[0].message.content;
+              const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+              if (jsonMatch) {
+                testCases = JSON.parse(jsonMatch[0]);
+                provider = '🟢 OpenAI (GPT-4o)';
+              }
+            }
+          }
+        } catch (e) {
+          console.log('OpenAI failed, trying Claude:', e.message);
+        }
       }
 
-      const data = await res.json();
-      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-        throw new Error('Không có phản hồi từ ChatGPT');
+      // Fallback sang Claude nếu OpenAI fail
+      if (!testCases && aiClaudeKey.trim()) {
+        try {
+          const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': aiClaudeKey,
+              'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 2000,
+              messages: [{ role: 'user', content: prompt }]
+            }),
+            signal: AbortSignal.timeout(30000)
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.content?.[0]?.text) {
+              const text = data.content[0].text;
+              const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+              if (jsonMatch) {
+                testCases = JSON.parse(jsonMatch[0]);
+                provider = '🔵 Claude (Fallback)';
+              }
+            }
+          } else {
+            const errData = await res.json();
+            throw new Error(errData.error?.message || 'Claude API error');
+          }
+        } catch (e) {
+          console.log('Claude failed:', e.message);
+          throw new Error('Cả OpenAI và Claude đều failed. Kiểm tra API keys.');
+        }
       }
 
-      const text = data.choices[0].message.content;
-      const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
-      if (!jsonMatch) {
-        throw new Error('Không thể parse response từ ChatGPT');
+      if (!testCases) {
+        throw new Error('Không thể parse response từ AI');
       }
 
-      const testCases = JSON.parse(jsonMatch[0]);
       handleImport(testCases);
       setFileContent('');
       setAiFileName('');
-      alert('✅ Generate thành công! ' + testCases.length + ' test cases đã import.');
+      setAiProvider(provider);
+      alert(`✅ Generate thành công (${provider})!\n${testCases.length} test cases đã import.`);
+      setTimeout(() => setAiProvider(''), 3000);
     } catch (e) {
-      alert('❌ Lỗi ChatGPT: ' + e.message);
+      alert('❌ Lỗi: ' + e.message);
     } finally {
       setAiGenLoading(false);
     }
@@ -774,20 +828,46 @@ export default function BuildChecklist() {
       {/* AI Generate zone (inline) */}
       {showAISection && (
         <div className="mb-4 bg-white rounded-xl shadow p-4">
-          <h3 className="font-bold text-base mb-3" style={{ color: '#6366f1' }}>🤖 AI Generate Test Cases</h3>
+          <h3 className="font-bold text-base mb-3" style={{ color: '#6366f1' }}>🤖 AI Generate Test Cases (Hybrid Mode)</h3>
 
-          {/* API Key Input */}
-          <div className="mb-4" style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#92400e' }}>
-            <div className="font-semibold mb-2">⚠️ OpenAI API Key (GPT-4o)</div>
-            <input
-              type="password"
-              value={aiApiKey}
-              onChange={(e) => setAiApiKey(e.target.value)}
-              placeholder="Nhập API key từ https://platform.openai.com"
-              className="w-full border border-yellow-300 rounded px-2 py-1 text-sm bg-white"
-              style={{ fontSize: 12 }}
-            />
-            <div style={{ fontSize: 11, marginTop: 6, opacity: 0.8 }}>📌 Lấy tại: <a href="https://platform.openai.com/account/api-keys" target="_blank" rel="noreferrer" style={{ color: '#b45309', fontWeight: 'bold' }}>platform.openai.com/api-keys</a></div>
+          {/* Provider Status */}
+          {aiProvider && (
+            <div style={{ background: '#dbeafe', border: '1px solid #93c5fd', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#1e40af', fontWeight: 600 }}>
+              Đang dùng: {aiProvider}
+            </div>
+          )}
+
+          {/* API Keys Section */}
+          <div style={{ background: '#f0f9ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: '#0284c7', fontWeight: 600, marginBottom: 8 }}>📌 API Keys (dùng 1 hoặc 2, AI sẽ tự chọn)</div>
+            
+            {/* OpenAI Key */}
+            <div className="mb-2">
+              <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4 }}>OpenAI API Key (Optional)</label>
+              <input
+                type="password"
+                value={aiApiKey}
+                onChange={(e) => setAiApiKey(e.target.value)}
+                placeholder="sk-..."
+                className="w-full border border-blue-300 rounded px-2 py-1 text-xs bg-white"
+              />
+            </div>
+
+            {/* Claude Key */}
+            <div className="mb-2">
+              <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4 }}>Claude API Key (Optional)</label>
+              <input
+                type="password"
+                value={aiClaudeKey}
+                onChange={(e) => setAiClaudeKey(e.target.value)}
+                placeholder="sk-ant-..."
+                className="w-full border border-amber-300 rounded px-2 py-1 text-xs bg-white"
+              />
+            </div>
+
+            <div style={{ fontSize: 10, color: '#64748b', marginTop: 8 }}>
+              📌 Lấy keys tại: <a href="https://platform.openai.com/account/api-keys" target="_blank" rel="noreferrer" style={{ color: '#0284c7', fontWeight: 'bold' }}>OpenAI</a> | <a href="https://console.anthropic.com/account/keys" target="_blank" rel="noreferrer" style={{ color: '#0284c7', fontWeight: 'bold' }}>Claude</a>
+            </div>
           </div>
 
           {/* File Upload */}
@@ -824,11 +904,11 @@ export default function BuildChecklist() {
           <div className="flex gap-2">
             <button
               onClick={generateTestCases}
-              disabled={aiGenLoading || !fileContent || !aiPrompt.trim() || !aiApiKey.trim()}
+              disabled={aiGenLoading || !fileContent || !aiPrompt.trim() || (!aiApiKey.trim() && !aiClaudeKey.trim())}
               style={{
-                background: aiGenLoading || !fileContent || !aiPrompt.trim() || !aiApiKey.trim() ? '#cbd5e1' : '#6366f1',
+                background: aiGenLoading || !fileContent || !aiPrompt.trim() || (!aiApiKey.trim() && !aiClaudeKey.trim()) ? '#cbd5e1' : '#6366f1',
                 color: '#fff',
-                cursor: aiGenLoading || !fileContent || !aiPrompt.trim() || !aiApiKey.trim() ? 'not-allowed' : 'pointer',
+                cursor: aiGenLoading || !fileContent || !aiPrompt.trim() || (!aiApiKey.trim() && !aiClaudeKey.trim()) ? 'not-allowed' : 'pointer',
                 padding: '8px 16px',
                 borderRadius: 6,
                 fontSize: 13,
