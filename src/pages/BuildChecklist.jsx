@@ -225,7 +225,18 @@ export default function BuildChecklist() {
   const [newTC, setNewTC] = useState({ feature: '', description: '', testToPerform: '' });
   const [editCell, setEditCell] = useState(null);
   const [editVal, setEditVal] = useState('');
-
+  const getResultColor = (result) => {
+    switch (result) {
+      case "Passed":
+        return "bg-green-100 text-green-700 border-green-300";
+      case "Failed":
+        return "bg-red-100 text-red-700 border-red-300";
+      case "Blocked":
+        return "bg-yellow-100 text-yellow-700 border-yellow-300";
+      default:
+        return "bg-gray-100 text-gray-600 border-gray-300";
+    }
+  };
   const fetchAll = useCallback(() => {
     setLoading(true);
     Promise.all([getTestCases(buildId), getProjects(), getVersions(projectId), getBuilds(versionId)])
@@ -440,7 +451,7 @@ export default function BuildChecklist() {
   }
 
   const stats = { total: testCases.length, passed: testCases.filter((t) => t.result === 'Passed').length, failed: testCases.filter((t) => t.result === 'Failed').length, blocked: testCases.filter((t) => t.result === 'Blocked').length, notRun: testCases.filter((t) => !t.result || t.result === 'Not Run').length };
-  const passRate = stats.total > 0 ? Math.round(stats.passed / stats.total * 100) : 0;
+  const passRate = stats.total > 0 ? Math.round(stats.passed / stats.total * 100) : 0; 
 
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" /></div>;
   if (error) return <div className="p-6"><div className="bg-red-50 text-red-700 p-4 rounded-lg">{error}</div></div>;
@@ -515,7 +526,8 @@ export default function BuildChecklist() {
                         <select
                           value={tc.result || "Not Run"}
                           onChange={(e) => handleUpdateResult(tc, e.target.value)}
-                          className="border rounded px-2 py-1"
+                          className={`border rounded px-2 py-1 font-medium ${getResultColor(tc.result)}`}
+                          disabled={tc.test_status === "No"} // 👉 disable nếu No
                         >
                           <option value="Passed">Passed</option>
                           <option value="Failed">Failed</option>
@@ -532,7 +544,7 @@ export default function BuildChecklist() {
                           <select
                             value={tc.test_status || "No"}
                             onChange={(e) => handleUpdateTestStatus(tc, e.target.value)}
-                            className="border rounded px-2 py-1"
+                            className="border rounded px-2 py-1 bg-white"
                           >
                             <option value="Yes">Yes</option>
                             <option value="No">No</option>
