@@ -474,6 +474,7 @@ export default function BuildChecklist() {
   const [aiGenLoading, setAiGenLoading] = useState(false);
   const [aiApiKey, setAiApiKey] = useState('');
   const [aiClaudeKey, setAiClaudeKey] = useState('');
+  const [aiGeminiKey, setAiGeminiKey] = useState('');
   const [aiFileName, setAiFileName] = useState('');
   const [aiProvider, setAiProvider] = useState('');
   const aiInputRef = useRef();
@@ -717,7 +718,7 @@ export default function BuildChecklist() {
               const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
               if (jsonMatch) {
                 testCases = JSON.parse(jsonMatch[0]);
-                provider = '🔵 Claude (Fallback)';
+                provider = '🔵 Claude';
               }
             }
           } else {
@@ -729,9 +730,41 @@ export default function BuildChecklist() {
         }
       }
 
+      // Fallback sang Gemini nếu OpenAI + Claude fail
+      if (!testCases && aiGeminiKey.trim()) {
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${aiGeminiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { maxOutputTokens: 2000 }
+            }),
+            signal: AbortSignal.timeout(30000)
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+              const text = data.candidates[0].content.parts[0].text;
+              const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+              if (jsonMatch) {
+                testCases = JSON.parse(jsonMatch[0]);
+                provider = '🟡 Gemini (Free)';
+              }
+            }
+          } else {
+            const errData = await res.json();
+            errors.push('Gemini: ' + (errData.error?.message || res.status));
+          }
+        } catch (e) {
+          errors.push('Gemini: ' + e.message);
+        }
+      }
+
       if (!testCases) {
-        if (!aiApiKey.trim() && !aiClaudeKey.trim()) {
-          throw new Error('Vui lòng nhập ít nhất 1 API key (OpenAI hoặc Claude)');
+        if (!aiApiKey.trim() && !aiClaudeKey.trim() && !aiGeminiKey.trim()) {
+          throw new Error('Vui lòng nhập ít nhất 1 API key (OpenAI, Claude hoặc Gemini)');
         }
         throw new Error('Không thể generate: ' + errors.join(' | '));
       }
@@ -830,7 +863,7 @@ export default function BuildChecklist() {
       {/* AI Generate zone (inline) */}
       {showAISection && (
         <div className="mb-4 bg-white rounded-xl shadow p-4">
-          <h3 className="font-bold text-base mb-3" style={{ color: '#6366f1' }}>🤖 AI Generate Test Cases (Hybrid Mode)</h3>
+          <h3 className="font-bold text-base mb-3" style={{ color: '#6366f1' }}>🤖 AI Generate Test Cases (GPT-4o + Claude + Gemini)</h3>
 
           {/* Provider Status */}
           {aiProvider && (
@@ -841,7 +874,7 @@ export default function BuildChecklist() {
 
           {/* API Keys Section */}
           <div style={{ background: '#f0f9ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 12, marginBottom: 12 }}>
-            <div style={{ fontSize: 11, color: '#0284c7', fontWeight: 600, marginBottom: 8 }}>📌 API Keys (dùng 1 hoặc 2, AI sẽ tự chọn)</div>
+            <div style={{ fontSize: 11, color: '#0284c7', fontWeight: 600, marginBottom: 8 }}>📌 API Keys (dùng 1+ tùy ý, AI sẽ tự chọn)</div>
             
             {/* OpenAI Key */}
             <div className="mb-2">
@@ -867,8 +900,20 @@ export default function BuildChecklist() {
               />
             </div>
 
+            {/* Gemini Key */}
+            <div className="mb-2">
+              <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4 }}>Gemini API Key (Optional - Free!) 🎉</label>
+              <input
+                type="password"
+                value={aiGeminiKey}
+                onChange={(e) => setAiGeminiKey(e.target.value)}
+                placeholder="AIza..."
+                className="w-full border border-green-300 rounded px-2 py-1 text-xs bg-white"
+              />
+            </div>
+
             <div style={{ fontSize: 10, color: '#64748b', marginTop: 8 }}>
-              📌 Lấy keys tại: <a href="https://platform.openai.com/account/api-keys" target="_blank" rel="noreferrer" style={{ color: '#0284c7', fontWeight: 'bold' }}>OpenAI</a> | <a href="https://console.anthropic.com/account/keys" target="_blank" rel="noreferrer" style={{ color: '#0284c7', fontWeight: 'bold' }}>Claude</a>
+              📌 Lấy keys tại: <a href="https://platform.openai.com/account/api-keys" target="_blank" rel="noreferrer" style={{ color: '#0284c7', fontWeight: 'bold' }}>OpenAI</a> | <a href="https://console.anthropic.com/account/keys" target="_blank" rel="noreferrer" style={{ color: '#0284c7', fontWeight: 'bold' }}>Claude</a> | <a href="https://ai.google.dev/" target="_blank" rel="noreferrer" style={{ color: '#16a34a', fontWeight: 'bold' }}>Gemini (Free)</a>
             </div>
           </div>
 
