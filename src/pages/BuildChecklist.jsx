@@ -645,10 +645,6 @@ export default function BuildChecklist() {
       alert('Vui lòng nhập prompt!');
       return;
     }
-    if (!aiApiKey.trim() && !aiClaudeKey.trim()) {
-      alert('❌ Vui lòng nhập ít nhất 1 API key (OpenAI hoặc Claude)!');
-      return;
-    }
 
     setAiGenLoading(true);
     try {
@@ -658,8 +654,9 @@ export default function BuildChecklist() {
 
       let testCases = null;
       let provider = '';
+      let errors = [];
 
-      // Thử OpenAI trước
+      // Thử OpenAI trước nếu có key
       if (aiApiKey.trim()) {
         try {
           const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -686,13 +683,16 @@ export default function BuildChecklist() {
                 provider = '🟢 OpenAI (GPT-4o)';
               }
             }
+          } else {
+            const errData = await res.json();
+            errors.push('OpenAI: ' + (errData.error?.message || res.status));
           }
         } catch (e) {
-          console.log('OpenAI failed, trying Claude:', e.message);
+          errors.push('OpenAI: ' + e.message);
         }
       }
 
-      // Fallback sang Claude nếu OpenAI fail
+      // Fallback sang Claude nếu OpenAI fail hoặc không có key
       if (!testCases && aiClaudeKey.trim()) {
         try {
           const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -722,16 +722,18 @@ export default function BuildChecklist() {
             }
           } else {
             const errData = await res.json();
-            throw new Error(errData.error?.message || 'Claude API error');
+            errors.push('Claude: ' + (errData.error?.message || res.status));
           }
         } catch (e) {
-          console.log('Claude failed:', e.message);
-          throw new Error('Cả OpenAI và Claude đều failed. Kiểm tra API keys.');
+          errors.push('Claude: ' + e.message);
         }
       }
 
       if (!testCases) {
-        throw new Error('Không thể parse response từ AI');
+        if (!aiApiKey.trim() && !aiClaudeKey.trim()) {
+          throw new Error('Vui lòng nhập ít nhất 1 API key (OpenAI hoặc Claude)');
+        }
+        throw new Error('Không thể generate: ' + errors.join(' | '));
       }
 
       handleImport(testCases);
@@ -904,11 +906,11 @@ export default function BuildChecklist() {
           <div className="flex gap-2">
             <button
               onClick={generateTestCases}
-              disabled={aiGenLoading || !fileContent || !aiPrompt.trim() || (!aiApiKey.trim() && !aiClaudeKey.trim())}
+              disabled={aiGenLoading || !fileContent || !aiPrompt.trim()}
               style={{
-                background: aiGenLoading || !fileContent || !aiPrompt.trim() || (!aiApiKey.trim() && !aiClaudeKey.trim()) ? '#cbd5e1' : '#6366f1',
+                background: aiGenLoading || !fileContent || !aiPrompt.trim() ? '#cbd5e1' : '#6366f1',
                 color: '#fff',
-                cursor: aiGenLoading || !fileContent || !aiPrompt.trim() || (!aiApiKey.trim() && !aiClaudeKey.trim()) ? 'not-allowed' : 'pointer',
+                cursor: aiGenLoading || !fileContent || !aiPrompt.trim() ? 'not-allowed' : 'pointer',
                 padding: '8px 16px',
                 borderRadius: 6,
                 fontSize: 13,
