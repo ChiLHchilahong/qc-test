@@ -468,6 +468,11 @@ export default function BuildChecklist() {
   const [editVal, setEditVal] = useState('');
   const [showJiraModal, setShowJiraModal] = useState(false);
   const [jiraBug, setJiraBug] = useState({ summary: '', description: '', priority: 'Medium', type: 'Bug' });
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [fileContent, setFileContent] = useState('');
+  const [aiGenLoading, setAiGenLoading] = useState(false);
+  const aiInputRef = useRef();
 
   const fetchAll = useCallback(() => {
     setLoading(true);
@@ -539,6 +544,23 @@ export default function BuildChecklist() {
     setShowJiraModal(true);
   };
 
+  // Parse PDF từ CDN
+  async function loadPDFLib() {
+    if (window.pdfjsLib) return window.pdfjsLib;
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      script.onload = () => {
+        if (window.pdfjsWorker) {
+          window.pdfjsWorker.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+        resolve(window.pdfjsLib || window.pdfjs);
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }\n\n  async function parsePDF(file) {\n    try {\n      const arrayBuffer = await file.arrayBuffer();\n      const pdfjsLib = await loadPDFLib();\n      if (!pdfjsLib.getDocument) throw new Error('PDF library không load được');\n      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;\n      let text = '';\n      for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) {\n        const page = await pdf.getPage(i);\n        const textContent = await page.getTextContent();\n        text += textContent.items.map(item => item.str).join(' ') + '\\n';\n      }\n      return text;\n    } catch (e) {\n      throw new Error('Lỗi parse PDF: ' + e.message);\n    }\n  }\n\n  async function parseDOCX(file) {\n    try {\n      const arrayBuffer = await file.arrayBuffer();\n      if (!window.mammoth) {\n        throw new Error('Mammoth library chưa load');\n      }\n      const result = await window.mammoth.extractRawText({ arrayBuffer });\n      return result.value;\n    } catch (e) {\n      throw new Error('Lỗi parse DOCX: ' + e.message);\n    }\n  }\n\n  async function handleAIFileUpload(file) {\n    try {\n      setAiGenLoading(true);\n      let content = '';\n      if (file.name.endsWith('.pdf')) {\n        content = await parsePDF(file);\n      } else if (file.name.endsWith('.docx')) {\n        if (!window.mammoth) {\n          const script = document.createElement('script');\n          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.min.js';\n          await new Promise((resolve, reject) => {\n            script.onload = resolve;\n            script.onerror = reject;\n            document.head.appendChild(script);\n          });\n        }\n        content = await parseDOCX(file);\n      } else {\n        alert('Chỉ hỗ trợ file PDF hoặc DOCX');\n        return;\n      }\n      setFileContent(content.substring(0, 3000));\n      alert('✅ File đã được load! Giờ nhập prompt và click Generate');\n    } catch (e) {\n      alert('Lỗi: ' + e.message);\n    } finally {\n      setAiGenLoading(false);\n    }\n  }\n\n  async function generateTestCases() {\n    if (!fileContent.trim()) {\n      alert('Vui lòng import file trước!');\n      return;\n    }\n    if (!aiPrompt.trim()) {\n      alert('Vui lòng nhập prompt!');\n      return;\n    }\n\n    setAiGenLoading(true);\n    try {\n      const prompt = `Bạn là QA automation engineer. Hãy phân tích tài liệu dưới đây và tạo test cases.\n\nTài liệu:\n${fileContent}\n\nYêu cầu: ${aiPrompt}\n\nHãy tạo test cases theo format JSON array (chỉ trả về JSON, không có text khác):\n[\n  {\n    \"feature\": \"Feature name\",\n    \"description\": \"Test description\",\n    \"testToPerform\": \"Steps\",\n    \"testStatus\": \"Yes\",\n    \"result\": \"Not Run\",\n    \"note\": \"Notes\"\n  }\n]`;\n\n      const res = await fetch('https://api.anthropic.com/v1/messages', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({\n          model: 'claude-sonnet-4-20250514',\n          max_tokens: 2000,\n          messages: [{ role: 'user', content: prompt }]\n        }),\n      });\n\n      const data = await res.json();\n      if (!data.content || !data.content[0]) {\n        throw new Error('Không có phản hồi từ AI');\n      }\n\n      const text = data.content[0].text;\n      const jsonMatch = text.match(/\\[\\s*\\{[\\s\\S]*\\}\\s*\\]/);\n      if (!jsonMatch) {\n        throw new Error('Không thể parse response từ AI');\n      }\n\n      const testCases = JSON.parse(jsonMatch[0]);\n      handleImport(testCases);\n      setShowAIModal(false);\n      setAiPrompt('');\n      setFileContent('');\n    } catch (e) {\n      alert('Lỗi AI: ' + e.message);\n    } finally {\n      setAiGenLoading(false);\n    }\n  }
+
   const handleSubmitJira = () => {
     const url = new URL('https://jira-mps.mto.zing.vn/secure/CreateIssue!default.jspa');
     url.searchParams.append('summary', jiraBug.summary);
@@ -601,6 +623,7 @@ export default function BuildChecklist() {
       {/* Action buttons */}
       <div className="flex flex-wrap gap-2 mb-4">
         <button onClick={() => setShowImport(!showImport)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm">📂 Import Excel/CSV</button>
+        <button onClick={() => setShowAIModal(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium text-sm">🤖 AI Generate (PDF/DOCX)</button>
         <button onClick={handleOpenJira} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium text-sm">Send to Jira</button>
         <button onClick={() => setShowReport(true)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium text-sm">📊 Report</button>
         <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm">+ Add Test Case</button>
@@ -736,6 +759,66 @@ export default function BuildChecklist() {
       </Modal>
 
       {showReport && <ReportModal testCases={testCases} meta={meta} onClose={() => setShowReport(false)} />}
+
+      {/* AI Generate Modal */}
+      {showAIModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 600, maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,.25)' }}>
+            {/* Header */}
+            <div style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', padding: '18px 24px', color: '#fff', flexShrink: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>🤖 AI Generate Test Cases</div>
+              <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>Tạo test cases từ PDF/DOCX sử dụng AI</div>
+            </div>
+
+            <div style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
+              <div className="space-y-4">
+                {/* File Upload */}
+                <div>
+                  <label style={{ fontSize: 13, color: '#64748b', display: 'block', marginBottom: 6, fontWeight: 600 }}>File PDF hoặc DOCX *</label>
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.background = '#e0e7ff'; }}
+                    onDragLeave={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
+                    onDrop={(e) => { e.preventDefault(); e.currentTarget.style.background = '#f8fafc'; if (e.dataTransfer.files[0]) handleAIFileUpload(e.dataTransfer.files[0]); }}
+                    onClick={() => aiInputRef.current?.click()}
+                    style={{ border: '2px dashed #cbd5e1', borderRadius: 10, padding: '16px', textAlign: 'center', cursor: 'pointer', background: '#f8fafc', transition: 'all 0.2s' }}
+                  >
+                    <div style={{ fontSize: 24, marginBottom: 6 }}>📄</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Kéo thả file PDF/DOCX vào đây</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>hoặc click để chọn</div>
+                    <input ref={aiInputRef} type="file" accept=".pdf,.docx" style={{ display: 'none' }} onChange={(e) => { if (e.target.files[0]) handleAIFileUpload(e.target.files[0]); }} />
+                  </div>
+                  {fileContent && <div style={{ fontSize: 11, color: '#15803d', marginTop: 8 }}>✅ File đã tải: {fileContent.substring(0, 50)}...</div>}
+                </div>
+
+                {/* Prompt Input */}
+                <div>
+                  <label style={{ fontSize: 13, color: '#64748b', display: 'block', marginBottom: 6, fontWeight: 600 }}>Nhập Prompt *</label>
+                  <textarea
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    placeholder="Ví dụ: Tạo test cases cho tính năng login với các trường email, password. Bao gồm test case valid, empty fields, invalid format..."
+                    rows={5}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    style={{ fontSize: 13, resize: 'vertical' }}
+                  />
+                </div>
+
+                {/* Info */}
+                <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#92400e' }}>
+                  💡 AI sẽ phân tích file và tạo test cases dựa trên prompt của bạn
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: '12px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 10, justifyContent: 'flex-end', flexShrink: 0 }}>
+              <button onClick={() => { setShowAIModal(false); setAiPrompt(''); setFileContent(''); }} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Hủy</button>
+              <button onClick={generateTestCases} disabled={aiGenLoading || !fileContent || !aiPrompt.trim()} style={{ background: aiGenLoading || !fileContent || !aiPrompt.trim() ? '#cbd5e1' : '#6366f1', color: '#fff', cursor: aiGenLoading || !fileContent || !aiPrompt.trim() ? 'not-allowed' : 'pointer' }} className="px-4 py-2 rounded-lg text-sm font-medium">
+                {aiGenLoading ? '⏳ Đang xử lý...' : '🚀 Generate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Jira Modal */}
       {showJiraModal && (
