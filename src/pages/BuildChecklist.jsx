@@ -8,6 +8,7 @@ import {
   importTestCases, createJiraIssue, sendBugsToJira,
 } from '../api/client';
 import Modal from '../components/Modal';
+import * as XLSX from "xlsx";
 
 const RESULT_CFG = {
   'Not Run': { bg: '#f1f5f9', color: '#64748b', border: '#cbd5e1' },
@@ -249,52 +250,119 @@ export default function BuildChecklist() {
     updateTestCase(editCell.id, body).then(fetchAll);
     setEditCell(null);
   }
-  function handleImport(rows) {
-    // ✅ AI IMPORT DOC/PDF
-    const handleImportAI = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+  // function handleImport(rows) {
+  //   // ✅ AI IMPORT DOC/PDF
+  //   const handleImportAI = async (e) => {
+  //     const file = e.target.files[0];
+  //     if (!file) return;
 
-      let text = "";
+  //     let text = "";
 
-      try {
-        if (file.name.endsWith(".docx")) {
-          text = await readDocx(file);
-        } else if (file.name.endsWith(".pdf")) {
-          text = await readPDF(file);
-        } else {
-          alert("Chỉ hỗ trợ PDF hoặc DOCX");
-          return;
-        }
+  //     try {
+  //       if (file.name.endsWith(".docx")) {
+  //         text = await readDocx(file);
+  //       } else if (file.name.endsWith(".pdf")) {
+  //         text = await readPDF(file);
+  //       } else {
+  //         alert("Chỉ hỗ trợ PDF hoặc DOCX");
+  //         return;
+  //       }
 
-        const aiData = await generateTestCases(text);
+  //       const aiData = await generateTestCases(text);
 
-        const mapped = aiData.map((t) => ({
-          feature: t.feature,
-          description: t.description,
-          testToPerform: t.steps,
-          testStatus: "To Do",
-          result: "Not Run",
-          issue: "",
-          note: "",
-        }));
+  //       const mapped = aiData.map((t) => ({
+  //         feature: t.feature,
+  //         description: t.description,
+  //         testToPerform: t.steps,
+  //         testStatus: "To Do",
+  //         result: "Not Run",
+  //         issue: "",
+  //         note: "",
+  //       }));
 
-        setImportLoading(true);
+  //       setImportLoading(true);
 
-        await importTestCases(buildId, mapped);
+  //       await importTestCases(buildId, mapped);
 
-        fetchAll();
-        alert("✅ Import AI thành công!");
-      } catch (err) {
-        console.error(err);
-        alert("❌ Lỗi AI import");
-      } finally {
-        setImportLoading(false);
-      }
+  //       fetchAll();
+  //       alert("✅ Import AI thành công!");
+  //     } catch (err) {
+  //       console.error(err);
+  //       alert("❌ Lỗi AI import");
+  //     } finally {
+  //       setImportLoading(false);
+  //     }
+  //   };
+  //   setImportLoading(true);
+  //   importTestCases(buildId, rows).then(() => { fetchAll(); setShowImport(false); }).catch((e) => alert('Import lỗi: ' + e.message)).finally(() => setImportLoading(false));
+  // }
+
+
+
+// ✅ FIX FULL IMPORT
+const handleImportFile = async (file) => {
+  try {
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data);
+
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+    if (!rows || rows.length <= 1) {
+      alert("File không có dữ liệu");
+      return;
+    }
+
+    // 👉 bỏ header
+    const dataRows = rows.slice(1);
+
+    const normalizeTest = (val) => {
+      if (!val) return "To Do";
+      val = val.toString().toLowerCase();
+
+      if (val.includes("yes")) return "Yes";
+      if (val.includes("no")) return "To Do";
+
+      return "To Do";
     };
+
+    const normalizeResult = (val) => {
+      if (!val) return "Not Run";
+      val = val.toString().toLowerCase();
+
+      if (val.includes("pass")) return "Passed";
+      if (val.includes("fail")) return "Failed";
+      if (val.includes("not")) return "Not Run";
+
+      return "Not Run";
+    };
+
+    // ✅ MAP ĐÚNG A → G
+    const mapped = dataRows.map((row) => ({
+      feature: row[0] || "",
+      description: row[1] || "",
+      testToPerform: row[2] || "",
+      testStatus: normalizeTest(row[3]),
+      result: normalizeResult(row[4]),
+      issue: row[5] || "",
+      note: row[6] || "",
+    }));
+
     setImportLoading(true);
-    importTestCases(buildId, rows).then(() => { fetchAll(); setShowImport(false); }).catch((e) => alert('Import lỗi: ' + e.message)).finally(() => setImportLoading(false));
+
+    await importTestCases(buildId, mapped);
+
+    fetchAll();
+
+    alert("✅ Import thành công!");
+  } catch (err) {
+    console.error(err);
+    alert("❌ Import lỗi");
+  } finally {
+    setImportLoading(false);
   }
+};
+
   const exportData = () => {
   if (!testCases || testCases.length === 0) {
     alert("Không có data để export");
