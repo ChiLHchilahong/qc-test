@@ -9,9 +9,6 @@ import {
 } from '../api/client';
 import Modal from '../components/Modal';
 
-
-const fileInputRef = useRef(null);
-
 const RESULT_CFG = {
   'Not Run': { bg: '#f1f5f9', color: '#64748b', border: '#cbd5e1' },
   Passed:    { bg: '#dcfce7', color: '#15803d', border: '#86efac' },
@@ -406,12 +403,6 @@ export default function BuildChecklist() {
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4">
-        <button
-  onClick={() => fileInputRef.current?.click()}
-  className="bg-purple-600 text-white px-4 py-2 rounded-lg"
->
-  📁 Import Excel/CSV
-</button>
         <button onClick={() => setShowImport(!showImport)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">📂 Import Excel/CSV</button>
         <button onClick={() => sendBugsToJira(buildId).then(fetchAll).catch((e) => alert(e.message))} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">Send to Jira</button>
         <button onClick={() => setShowReport(true)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">📊 Report</button>
