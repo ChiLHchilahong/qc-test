@@ -673,14 +673,48 @@ export default function BuildChecklist() {
           throw new Error('Gemini: ' + msg);
         }
 
-        const text = data?.candidates?.[0]?.output || data?.output?.text || '';
-        const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
-        if (jsonMatch) {
-          testCases = JSON.parse(jsonMatch[0]);
-          provider = '🟡 Gemini';
-        } else {
-          throw new Error('Gemini: không parse được JSON trong response');
+        const text = (data?.candidates?.[0]?.output || data?.output?.text || '').trim();
+        if (!text) {
+          throw new Error('Gemini: response không có nội dung');
         }
+
+        let parsed = null;
+        const tryParse = (input) => {
+          try {
+            return JSON.parse(input);
+          } catch (err) {
+            return null;
+          }
+        };
+
+        // Ưu tiên xử lý JSON chuẩn
+        parsed = tryParse(text);
+
+        // Nếu không phải JSON chuẩn, tìm mảng JSON trong text
+        if (!parsed) {
+          const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+          if (jsonMatch) {
+            parsed = tryParse(jsonMatch[0]);
+          }
+        }
+
+        // Nếu vẫn chưa được mà là object JSON, bọc mảng
+        if (!parsed) {
+          const objectMatch = text.match(/\{[\s\S]*\}/);
+          if (objectMatch) {
+            const obj = tryParse(objectMatch[0]);
+            if (obj && typeof obj === 'object') {
+              parsed = [obj];
+            }
+          }
+        }
+
+        if (!parsed || !Array.isArray(parsed)) {
+          throw new Error('Gemini: không parse được JSON từ response: ' + text.slice(0, 400));
+        }
+
+        testCases = parsed;
+        provider = '🟡 Gemini';
       } catch (e) {
         errors.push(e.message);
       }
