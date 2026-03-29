@@ -836,10 +836,18 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
         ].map((s) => <span key={s.l} className={'px-3 py-1 rounded-full text-sm font-semibold ' + s.c}>{s.l}: {s.v}</span>)}
       </div>
 
-      {/* Action buttons */}
+      {/* Action buttons - Tab style */}
       <div className="flex flex-wrap gap-2 mb-4">
-        <button onClick={() => setShowImport(!showImport)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm">📂 Import Excel/CSV</button>
-        <button onClick={() => setShowAISection(!showAISection)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium text-sm">🤖 AI Generate (PDF/DOCX)</button>
+        <button 
+          onClick={() => { setShowImport(true); setShowAISection(false); }} 
+          className={"px-4 py-2 rounded-lg font-medium text-sm " + (showImport ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-700")}>
+          📂 Import Excel/CSV
+        </button>
+        <button 
+          onClick={() => { setShowAISection(true); setShowImport(false); }} 
+          className={"px-4 py-2 rounded-lg font-medium text-sm " + (showAISection ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-700")}>
+          🤖 AI Generate (PDF/DOCX)
+        </button>
         <button onClick={handleOpenJira} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium text-sm">Send to Jira</button>
         <button onClick={() => setShowReport(true)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium text-sm">📊 Report</button>
         <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm">+ Add Test Case</button>
