@@ -176,6 +176,22 @@ export const sendBugsToJira = async () => {
   alert('Sent bugs to Jira ✅');
 };
 
+// ─── AUTH ─────────────────────────
+export const getHasAnyAccount = async () => {
+  const res = await api.get('/api/auth/has-accounts');
+  return Boolean(res.data?.hasAnyAccount);
+};
+
+export const registerAccount = async (username, password) => {
+  const res = await api.post('/api/auth/register', { username, password });
+  return res.data;
+};
+
+export const loginAccount = async (username, password) => {
+  const res = await api.post('/api/auth/login', { username, password });
+  return res.data;
+};
+
 // ─── DASHBOARD ─────────────────────────
 export const getDashboard = async () => {
   const res = await api.get('/api/reports/dashboard', {

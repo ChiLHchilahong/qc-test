@@ -58,6 +58,20 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (build_id) REFERENCES builds(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
 `);
+
+const defaultUsername = process.env.DEFAULT_LOGIN_USERNAME || 'admin';
+const defaultPassword = process.env.DEFAULT_LOGIN_PASSWORD || '123456';
+const existingDefaultUser = db.prepare('SELECT id FROM users WHERE lower(username) = lower(?)').get(defaultUsername);
+if (!existingDefaultUser) {
+  db.prepare('INSERT INTO users (username, password) VALUES (?, ?)').run(defaultUsername, defaultPassword);
+}
 
 export default db;

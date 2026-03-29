@@ -1,20 +1,9 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { getHasAnyAccount, loginAccount, registerAccount } from '../api/client';
 
-const ACCOUNTS_STORAGE_KEY = 'qc_auth_accounts';
 const SESSION_STORAGE_KEY = 'qc_auth_session';
 const SESSION_TTL_MS = 30 * 60 * 1000;
 const AuthContext = createContext(null);
-
-function readStoredAccounts() {
-  try {
-    const raw = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(parsed)) return parsed;
-    return [];
-  } catch {
-    return [];
-  }
-}
 
 function readStoredSession() {
   try {
@@ -38,14 +27,15 @@ function readStoredSession() {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => readStoredSession());
-  const [accounts, setAccounts] = useState(() => readStoredAccounts());
+  const [hasAnyAccount, setHasAnyAccount] = useState(false);
 
-  const persistAccounts = (nextAccounts) => {
-    localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(nextAccounts));
-    setAccounts(nextAccounts);
-  };
+  useEffect(() => {
+    getHasAnyAccount()
+      .then((v) => setHasAnyAccount(Boolean(v)))
+      .catch(() => setHasAnyAccount(false));
+  }, []);
 
-  const register = (username, password) => {
+  const register = async (username, password) => {
     const normalizedUsername = String(username || '').trim();
     const normalizedPassword = String(password || '');
 
@@ -56,42 +46,33 @@ export function AuthProvider({ children }) {
       return { success: false, message: 'Mật khẩu phải từ 4 ký tự' };
     }
 
-    const existed = accounts.some(
-      (acc) => acc.username.toLowerCase() === normalizedUsername.toLowerCase()
-    );
-    if (existed) {
-      return { success: false, message: 'Tài khoản đã tồn tại' };
+    try {
+      await registerAccount(normalizedUsername, normalizedPassword);
+      setHasAnyAccount(true);
+      return { success: true };
+    } catch (error) {
+      const message = error?.response?.data?.error || error?.message || 'Đăng ký thất bại';
+      return { success: false, message };
     }
-
-    const nextAccounts = [...accounts, { username: normalizedUsername, password: normalizedPassword }];
-    persistAccounts(nextAccounts);
-    return { success: true };
   };
 
-  const login = (username, password) => {
+  const login = async (username, password) => {
     const normalizedUsername = String(username || '').trim();
 
-    // Backward compatibility: if no registered account yet, keep default admin account.
-    const candidates = accounts.length > 0
-      ? accounts
-      : [{ username: import.meta.env.VITE_LOGIN_USERNAME || 'admin', password: import.meta.env.VITE_LOGIN_PASSWORD || '123456' }];
+    try {
+      const data = await loginAccount(normalizedUsername, password);
+      const nextUser = {
+        username: data?.user?.username || normalizedUsername,
+        loginAt: Date.now(),
+      };
 
-    const matched = candidates.find(
-      (acc) => acc.username.toLowerCase() === normalizedUsername.toLowerCase() && acc.password === password
-    );
-
-    if (!matched) {
-      return { success: false, message: 'Sai tài khoản hoặc mật khẩu' };
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextUser));
+      setUser(nextUser);
+      return { success: true };
+    } catch (error) {
+      const message = error?.response?.data?.error || error?.message || 'Sai tài khoản hoặc mật khẩu';
+      return { success: false, message };
     }
-
-    const nextUser = {
-      username: matched.username,
-      loginAt: Date.now(),
-    };
-
-    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextUser));
-    setUser(nextUser);
-    return { success: true };
   };
 
   const logout = () => {
@@ -103,12 +84,12 @@ export function AuthProvider({ children }) {
     () => ({
       user,
       isAuthenticated: Boolean(user),
-      hasAnyAccount: accounts.length > 0,
+      hasAnyAccount,
       login,
       logout,
       register,
     }),
-    [user, accounts]
+    [user, hasAnyAccount]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

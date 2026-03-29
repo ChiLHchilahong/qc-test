@@ -335,8 +335,8 @@ function ImportDropZone({ onParsed }) {
         onClick={() => ref.current.click()}
         style={{ border: '2px dashed ' + (dragging ? '#3b82f6' : '#cbd5e1'), borderRadius: 10, padding: '22px', textAlign: 'center', cursor: 'pointer', background: dragging ? '#eff6ff' : '#f8fafc' }}>
         <div style={{ fontSize: 28, marginBottom: 6 }}>📂</div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>Kéo thả file Excel / CSV vào đây</div>
-        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>hoặc click để chọn (.xlsx, .xls, .csv)</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>Kéo thả file CSV vào đây</div>
+        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>hoặc click để chọn (.csv)</div>
         <input ref={ref} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={(e) => { if (e.target.files[0]) { handle(e.target.files[0]); ref.current.value = ''; } }} />
       </div>
       {err && <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '6px 10px', borderRadius: 6, fontSize: 12, marginTop: 6 }}>{err}</div>}
@@ -490,7 +490,7 @@ export default function BuildChecklist() {
   const [buildName, setBuildName] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showImport, setShowImport] = useState(true);
+  const [showImport, setShowImport] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [jiraTc, setJiraTc] = useState(null);
@@ -877,9 +877,9 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
       {/* Action buttons - Tab style */}
       <div className="flex flex-wrap gap-2 mb-4">
         <button 
-          onClick={() => { setShowImport(true); setShowAISection(false); }} 
+          onClick={() => { setShowImport(v => !v); setShowAISection(false); }} 
           className={"px-4 py-2 rounded-lg font-medium text-sm " + (showImport ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-purple-100 hover:bg-purple-200 text-purple-700")}>
-          📂 Import Excel/CSV
+          📂 Import CSV
         </button>
         <button 
           onClick={() => { setShowAISection(true); setShowImport(false); }} 

@@ -12,6 +12,7 @@ import buildsRouter from './routes/builds.js';
 import testcasesRouter from './routes/testcases.js';
 import reportsRouter from './routes/reports.js';
 import jiraRouter from './routes/jira.js';
+import authRouter from './routes/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +30,7 @@ app.use('/api/builds', buildsRouter);
 app.use('/api/testcases', testcasesRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/jira', jiraRouter);
+app.use('/api/auth', authRouter);
 
 // ── AI proxy route (Gemini 2.0 Flash) ─────────────────────
 app.post('/api/ai/gemini', async (req, res) => {

@@ -19,7 +19,7 @@ export default function Login() {
 
   const from = location.state?.from?.pathname || '/';
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (mode === 'register') {
@@ -28,7 +28,7 @@ export default function Login() {
         return;
       }
 
-      const result = register(username.trim(), password);
+      const result = await register(username.trim(), password);
       if (!result.success) {
         setError(result.message || 'Đăng ký thất bại');
         return;
@@ -42,7 +42,7 @@ export default function Login() {
       return;
     }
 
-    const result = login(username.trim(), password);
+    const result = await login(username.trim(), password);
 
     if (!result.success) {
       setError(result.message || 'Đăng nhập thất bại');
