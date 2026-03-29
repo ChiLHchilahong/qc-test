@@ -16,10 +16,25 @@ const RESULT_CFG = {
 };
 const RESULTS = Object.keys(RESULT_CFG);
 
+const normalizeResult = (value) => {
+  if (!value || typeof value !== 'string') return 'Not Run';
+  const raw = value.trim().toLowerCase();
+  if (raw === 'passed' || raw === 'pass') return 'Passed';
+  if (raw === 'failed' || raw === 'fail') return 'Failed';
+  if (raw === 'in progress' || raw === 'in-progress' || raw === 'in_progress' || raw === 'inprogress') return 'In Progress';
+  if (raw === 'not run' || raw === 'not-run' || raw === 'not_run' || raw === 'notrun') return 'Not Run';
+  if (raw === 'warning') return 'Failed';
+  if (raw === 'blocked') return 'In Progress';
+  // fallback: if matched any defined key ignoring case
+  const key = Object.keys(RESULT_CFG).find((x) => x.toLowerCase() === raw);
+  return key || 'Not Run';
+};
+
 const getResultColor = (result) => {
-  if (result === 'Passed') return 'bg-green-100 text-green-700 border-green-300';
-  if (result === 'Failed')  return 'bg-red-100 text-red-700 border-red-300';
-  if (result === 'In Progress') return 'bg-yellow-100 text-yellow-700 border-yellow-300';
+  const normalized = normalizeResult(result);
+  if (normalized === 'Passed') return 'bg-green-100 text-green-700 border-green-300';
+  if (normalized === 'Failed') return 'bg-red-100 text-red-700 border-red-300';
+  if (normalized === 'In Progress') return 'bg-yellow-100 text-yellow-700 border-yellow-300';
   return 'bg-gray-100 text-gray-600 border-gray-300';
 };
 const getTestStatusColor = (status) => {
@@ -105,7 +120,7 @@ async function parseFileToRows(file) {
 function exportCSV(testCases) {
   if (!testCases || testCases.length === 0) { alert('Không có data để export'); return; }
   const headers = ['Feature', 'Test Case Description', 'Test To Perform', 'Test', 'Result', 'Issue', 'Note'];
-  const rows = testCases.map((t) => [t.feature||'', t.description||'', t.testToPerform||t.test_to_perform||'', t.testStatus||t.test_status||'', t.result||'', t.issue||'', t.note||'']);
+  const rows = testCases.map((t) => [t.feature||'', t.description||'', t.testToPerform||t.test_to_perform||'', t.testStatus||t.test_status||'', normalizeResult(t.result), t.issue||'', t.note||'']);
   const csv = [headers, ...rows].map((e) => e.map((x) => '"' + x + '"').join(',')).join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }));
@@ -129,7 +144,7 @@ async function exportToExcel(testCases, meta) {
     [total, counts.Passed, counts.Failed, counts['In Progress'], counts['Not Run'], rate + '%'],
   ]);
   const tcHeader = ['#', 'Feature', 'Test Case Description', 'Test To Perform', '?Test', 'Result', 'Issue (Jira)', 'Note'];
-  const tcData = testCases.map((tc, i) => [i+1, tc.feature||'', tc.description||'', tc.testToPerform||tc.test_to_perform||'', tc.testStatus||tc.test_status||'', tc.result||'', tc.issue||'', tc.note||'']);
+  const tcData = testCases.map((tc, i) => [i+1, tc.feature||'', tc.description||'', tc.testToPerform||tc.test_to_perform||'', tc.testStatus||tc.test_status||'', normalizeResult(tc.result), tc.issue||'', tc.note||'']);
   const wsTC = XLSX.utils.aoa_to_sheet([tcHeader, ...tcData]);
   wsTC['!cols'] = [{ wch: 4 }, { wch: 20 }, { wch: 40 }, { wch: 45 }, { wch: 10 }, { wch: 12 }, { wch: 16 }, { wch: 28 }];
   wsSummary['!cols'] = [{ wch: 15 }, { wch: 24 }];
@@ -141,10 +156,10 @@ async function exportToExcel(testCases, meta) {
 // ─── Email HTML builders ──────────────────────────────────
 // 1. Sum-up email (theo mẫu bạn gửi)
 function buildSumUpHtml(testCases, meta, buildStatus) {
-  const failed     = testCases.filter((tc) => tc.result === 'Failed');
-  const passed     = testCases.filter((tc) => tc.result === 'Passed');
-  const inProgress = testCases.filter((tc) => tc.result === 'In Progress');
-  const notrun     = testCases.filter((tc) => !tc.result || tc.result === 'Not Run');
+  const failed     = testCases.filter((tc) => normalizeResult(tc.result) === 'Failed');
+  const passed     = testCases.filter((tc) => normalizeResult(tc.result) === 'Passed');
+  const inProgress = testCases.filter((tc) => normalizeResult(tc.result) === 'In Progress');
+  const notrun     = testCases.filter((tc) => normalizeResult(tc.result) === 'Not Run');
   const total   = testCases.length;
   const rate    = total > 0 ? Math.round(passed.length / total * 100) : 0;
   const today   = new Date().toLocaleDateString('vi-VN');
@@ -229,7 +244,8 @@ function buildFullHtml(testCases, meta) {
   const th = (h) => "<th style='padding:9px 12px;text-align:left;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-bottom:2px solid #e2e8f0;white-space:nowrap'>" + h + "</th>";
   const thead = ['#', 'Feature', 'Test Case', 'Test To Perform', '?Test', 'Result', 'Jira', 'Note'].map(th).join('');
   const tbody = testCases.map((tc, i) => {
-    const r = RESULT_CFG[tc.result] || RESULT_CFG['Not Run'];
+    const res = normalizeResult(tc.result);
+    const r = RESULT_CFG[res] || RESULT_CFG['Not Run'];
     const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
     const jira = tc.issue
       ? "<span style='background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:2px 7px;border-radius:4px;font-size:11px;font-family:monospace'>" + tc.issue + "</span>"
@@ -323,8 +339,8 @@ function ReportModal({ testCases, meta, onClose }) {
   const [copied, setCopied] = useState(false);
   const [tab, setTab] = useState('sumup');
 
-  const failed = testCases.filter((tc) => tc.result === 'Failed');
-  const passed = testCases.filter((tc) => tc.result === 'Passed');
+  const failed = testCases.filter((tc) => normalizeResult(tc.result) === 'Failed');
+  const passed = testCases.filter((tc) => normalizeResult(tc.result) === 'Passed');
   const m = { ...meta, tester: tester || 'QC Team' };
 
   async function genAIStatus() {
@@ -493,7 +509,8 @@ export default function BuildChecklist() {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const handleUpdateResult = async (tc, newResult) => {
-    try { await updateTestCase(tc.id, { result: newResult }); fetchAll(); }
+    const resultNormalized = normalizeResult(newResult);
+    try { await updateTestCase(tc.id, { result: resultNormalized }); fetchAll(); }
     catch (e) { alert('Update result lỗi'); }
   };
 
@@ -790,10 +807,10 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
 
   const stats = {
     total: testCases.length,
-    passed:     testCases.filter((t) => t.result === 'Passed').length,
-    failed:     testCases.filter((t) => t.result === 'Failed').length,
-    inProgress: testCases.filter((t) => t.result === 'In Progress').length,
-    notRun:     testCases.filter((t) => !t.result || t.result === 'Not Run').length,
+    passed:     testCases.filter((t) => normalizeResult(t.result) === 'Passed').length,
+    failed:     testCases.filter((t) => normalizeResult(t.result) === 'Failed').length,
+    inProgress: testCases.filter((t) => normalizeResult(t.result) === 'In Progress').length,
+    notRun:     testCases.filter((t) => normalizeResult(t.result) === 'Not Run').length,
   };
   const passRate = stats.total > 0 ? Math.round(stats.passed / stats.total * 100) : 0;
 
@@ -979,7 +996,7 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
                     const tcStatus = tc.testStatus || tc.test_status || 'No';
 
                     if (col.type === 'result') {
-                      const res = tc.result || 'Not Run';
+                      const res = normalizeResult(tc.result || 'Not Run');
                       const locked = tcStatus === 'No';
                       return (
                         <td key={col.key} className="px-3 py-2">
@@ -1050,7 +1067,7 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
                     );
                   })}
                   <td className="px-3 py-2 whitespace-nowrap flex gap-1">
-                    {tc.result === 'Failed' && (
+                    {normalizeResult(tc.result) === 'Failed' && (
                       <button onClick={() => window.open('https://jira-mps.mto.zing.vn/secure/CreateIssue!default.jspa', '_blank')}
                         className="text-xs px-2 py-1 rounded bg-orange-100 text-orange-600 border border-orange-300 hover:bg-orange-200 font-medium">🐛 Jira</button>
                     )}
