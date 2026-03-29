@@ -840,12 +840,12 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
       <div className="flex flex-wrap gap-2 mb-4">
         <button 
           onClick={() => { setShowImport(true); setShowAISection(false); }} 
-          className={"px-4 py-2 rounded-lg font-medium text-sm " + (showImport ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-700")}>
+          className={"px-4 py-2 rounded-lg font-medium text-sm " + (showImport ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-purple-100 hover:bg-purple-200 text-purple-700")}>
           📂 Import Excel/CSV
         </button>
         <button 
           onClick={() => { setShowAISection(true); setShowImport(false); }} 
-          className={"px-4 py-2 rounded-lg font-medium text-sm " + (showAISection ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-700")}>
+          className={"px-4 py-2 rounded-lg font-medium text-sm " + (showAISection ? "bg-indigo-500 hover:bg-indigo-600 text-white" : "bg-indigo-100 hover:bg-indigo-200 text-indigo-700")}>
           🤖 AI Generate (PDF/DOCX)
         </button>
         <button onClick={handleOpenJira} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium text-sm">Send to Jira</button>
@@ -978,20 +978,30 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
                     const isEditing = editCell?.id === tc.id && editCell?.field === col.key;
                     const tcStatus = tc.testStatus || tc.test_status || 'No';
 
-                    if (col.type === 'result') return (
-                      <td key={col.key} className="px-3 py-2">
-                        <select value={tc.result || 'Not Run'}
-                          onChange={(e) => handleUpdateResult(tc, e.target.value)}
-                          disabled={tcStatus === 'No'}
-                          className={'border rounded px-2 py-1 text-sm font-medium ' + getResultColor(tc.result)}
-                          style={{ opacity: tcStatus === 'No' ? 0.5 : 1, cursor: tcStatus === 'No' ? 'not-allowed' : 'pointer' }}>
-                          <option value="Passed">Passed</option>
-                          <option value="Failed">Failed</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Not Run">Not Run</option>
-                        </select>
-                      </td>
-                    );
+                    if (col.type === 'result') {
+                      const res = tc.result || 'Not Run';
+                      const styleCfg = RESULT_CFG[res] || RESULT_CFG['Not Run'];
+                      return (
+                        <td key={col.key} className="px-3 py-2">
+                          <select value={res}
+                            onChange={(e) => handleUpdateResult(tc, e.target.value)}
+                            disabled={tcStatus === 'No'}
+                            className={'border rounded px-2 py-1 text-sm font-medium ' + getResultColor(res)}
+                            style={{
+                              opacity: tcStatus === 'No' ? 0.5 : 1,
+                              cursor: tcStatus === 'No' ? 'not-allowed' : 'pointer',
+                              backgroundColor: styleCfg.bg,
+                              color: styleCfg.color,
+                              borderColor: styleCfg.border,
+                            }}>
+                            <option value="Passed">Passed</option>
+                            <option value="Failed">Failed</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Not Run">Not Run</option>
+                          </select>
+                        </td>
+                      );
+                    }
 
                     if (col.type === 'status') return (
                       <td key={col.key} className="px-3 py-2">
