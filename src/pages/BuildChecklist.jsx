@@ -657,152 +657,42 @@ export default function BuildChecklist() {
       let provider = '';
       let errors = [];
 
-      // Thử OpenAI với nhiều model nếu có key
-      if (aiApiKey.trim()) {
-        const openAIModels = ['gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-3.5-turbo'];
-        for (const model of openAIModels) {
-          let openAiError = null;
-          try {
-            const res = await fetch('https://api.openai.com/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${aiApiKey}`
-              },
-              body: JSON.stringify({
-                model,
-                messages: [{ role: 'user', content: prompt }],
-                max_tokens: 2000
-              }),
-              signal: AbortSignal.timeout(30000)
-            });
-
-            const data = await res.json();
-            if (!res.ok) {
-              openAiError = data?.error?.message || `${res.status}`;
-              errors.push(`OpenAI (${model}): ${openAiError}`);
-              continue;
-            }
-
-            const text = data?.choices?.[0]?.message?.content || '';
-            const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
-            if (jsonMatch) {
-              testCases = JSON.parse(jsonMatch[0]);
-              provider = `🟢 OpenAI (${model})`;
-              break;
-            } else {
-              errors.push(`OpenAI (${model}): không parse được JSON trong response`);
-            }
-          } catch (e) {
-            openAiError = e.message;
-            errors.push(`OpenAI (${model}): ${openAiError}`);
-          }
-
-          if (testCases) break;
-        }
+      if (!aiGeminiKey.trim()) {
+        throw new Error('Vui lòng nhập Gemini API key trong phần AI Generate');
       }
 
-      // Fallback sang Claude nếu OpenAI fail hoặc không có key
-      if (!testCases && aiClaudeKey.trim()) {
-        try {
-          const res = await fetch('https://api.anthropic.com/v1/complete', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-api-key': aiClaudeKey
-            },
-            body: JSON.stringify({
-              model: 'claude-3.1',
-              prompt: prompt,
-              max_tokens_to_sample: 2000
-            }),
-            signal: AbortSignal.timeout(30000)
-          });
+      try {
+        const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta2/models/text-bison-001:generate?key=${aiGeminiKey}`;
+        const res = await fetch(geminiEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: { text: prompt },
+            max_output_tokens: 2000
+          }),
+          signal: AbortSignal.timeout(30000)
+        });
 
-          const data = await res.json();
-          if (!res.ok) {
-            errors.push('Claude: ' + (data?.error?.message || data?.error || res.status));
-          } else {
-            const text = data?.completion || data?.output_text || '';
-            const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
-            if (jsonMatch) {
-              testCases = JSON.parse(jsonMatch[0]);
-              provider = '🔵 Claude';
-            } else {
-              errors.push('Claude: không parse được JSON trong response');
-            }
-          }
-        } catch (e) {
-          errors.push('Claude: ' + e.message);
+        const data = await res.json();
+        if (!res.ok) {
+          const msg = data?.error?.message || data?.error || res.status;
+          throw new Error('Gemini: ' + msg);
         }
-      }
 
-      // Fallback sang Gemini nếu OpenAI + Claude fail
-      if (!testCases && aiGeminiKey.trim()) {
-        try {
-          const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta2/models/text-bison-001:generate?key=${aiGeminiKey}`;
-          const res = await fetch(geminiEndpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              prompt: { text: prompt },
-              max_output_tokens: 2000
-            }),
-            signal: AbortSignal.timeout(30000)
-          });
-
-          const data = await res.json();
-          if (!res.ok) {
-            errors.push('Gemini: ' + (data?.error?.message || data?.error || res.status));
-          } else {
-            const text = data?.candidates?.[0]?.output || data?.output?.text || '';
-            const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
-            if (jsonMatch) {
-              testCases = JSON.parse(jsonMatch[0]);
-              provider = '🟡 Gemini (Free)';
-            } else {
-              errors.push('Gemini: không parse được JSON trong response');
-            }
-          }
-        } catch (e) {
-          errors.push('Gemini: ' + e.message);
+        const text = data?.candidates?.[0]?.output || data?.output?.text || '';
+        const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+        if (jsonMatch) {
+          testCases = JSON.parse(jsonMatch[0]);
+          provider = '🟡 Gemini';
+        } else {
+          throw new Error('Gemini: không parse được JSON trong response');
         }
+      } catch (e) {
+        errors.push(e.message);
       }
 
       if (!testCases) {
-        const errDetails = errors.join(' | ');
-
-        if (!aiApiKey.trim() && !aiClaudeKey.trim() && !aiGeminiKey.trim()) {
-          throw new Error('Vui lòng nhập ít nhất 1 API key (OpenAI, Claude hoặc Gemini)');
-        }
-
-        const fallback = window.confirm(
-          'Tất cả provider AI đều thất bại.\n\nLỗi: ' + errDetails +
-          '\n\nBạn có muốn thử fallback local (tạo mẫu test cases từ prompt)?'
-        );
-
-        if (!fallback) {
-          throw new Error('Không thể generate: ' + errDetails);
-        }
-
-        // Local fallback การ generate test cases cho trial
-        const fallbackCases = [];
-        const sourceLines = fileContent.split('\n').map((l) => l.trim()).filter(Boolean);
-        const maxGenerate = Math.min(6, sourceLines.length || 3);
-        for (let i = 0; i < maxGenerate; i++) {
-          fallbackCases.push({
-            feature: sourceLines[i] ? sourceLines[i].substring(0, 60) : 'Feature từ prompt',
-            description: 'Auto-generated testcase (' + (i + 1) + ') based on prompt: ' + aiPrompt.substring(0, 100),
-            testToPerform: '1) Đọc tài liệu, 2) Viết bước kiểm thử, 3) Chạy và verify',
-            testStatus: 'Yes',
-            result: 'Not Run',
-            issue: '',
-            note: 'Fallback local generation'
-          });
-        }
-
-        testCases = fallbackCases;
-        provider = '⚠️ Local fallback';
+        throw new Error('Gemini failed: ' + errors.join(' | '));
       }
 
       handleImport(testCases);
