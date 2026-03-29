@@ -800,35 +800,10 @@ export default function BuildChecklist() {
 
           {/* API Keys Section */}
           <div style={{ background: '#f0f9ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 12, marginBottom: 12 }}>
-            <div style={{ fontSize: 11, color: '#0284c7', fontWeight: 600, marginBottom: 8 }}>📌 API Keys (dùng 1+ tùy ý, AI sẽ tự chọn)</div>
-            
-            {/* OpenAI Key */}
-            <div className="mb-2">
-              <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4 }}>OpenAI API Key (Optional)</label>
-              <input
-                type="password"
-                value={aiApiKey}
-                onChange={(e) => setAiApiKey(e.target.value)}
-                placeholder="sk-..."
-                className="w-full border border-blue-300 rounded px-2 py-1 text-xs bg-white"
-              />
-            </div>
+            <div style={{ fontSize: 11, color: '#0284c7', fontWeight: 600, marginBottom: 8 }}>📌 Gemini API Key (bắt buộc, 1 key duy nhất)</div>
 
-            {/* Claude Key */}
             <div className="mb-2">
-              <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4 }}>Claude API Key (Optional)</label>
-              <input
-                type="password"
-                value={aiClaudeKey}
-                onChange={(e) => setAiClaudeKey(e.target.value)}
-                placeholder="sk-ant-..."
-                className="w-full border border-amber-300 rounded px-2 py-1 text-xs bg-white"
-              />
-            </div>
-
-            {/* Gemini Key */}
-            <div className="mb-2">
-              <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4 }}>Gemini API Key (Optional - Free!) 🎉</label>
+              <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4 }}>Gemini API Key</label>
               <input
                 type="password"
                 value={aiGeminiKey}
@@ -839,7 +814,7 @@ export default function BuildChecklist() {
             </div>
 
             <div style={{ fontSize: 10, color: '#64748b', marginTop: 8 }}>
-              📌 Lấy keys tại: <a href="https://platform.openai.com/account/api-keys" target="_blank" rel="noreferrer" style={{ color: '#0284c7', fontWeight: 'bold' }}>OpenAI</a> | <a href="https://console.anthropic.com/account/keys" target="_blank" rel="noreferrer" style={{ color: '#0284c7', fontWeight: 'bold' }}>Claude</a> | <a href="https://ai.google.dev/" target="_blank" rel="noreferrer" style={{ color: '#16a34a', fontWeight: 'bold' }}>Gemini (Free)</a>
+              📌 Lấy key tại: <a href="https://ai.google.dev/" target="_blank" rel="noreferrer" style={{ color: '#16a34a', fontWeight: 'bold' }}>Gemini (Free)</a>
             </div>
           </div>
 
