@@ -667,7 +667,14 @@ export default function BuildChecklist() {
           signal: AbortSignal.timeout(30000)
         });
 
-        const data = await res.json();
+        const rawText = await res.text();
+        let data;
+        try {
+          data = rawText ? JSON.parse(rawText) : null;
+        } catch (err) {
+          throw new Error('Gemini: proxy returned invalid JSON: ' + rawText.slice(0, 500));
+        }
+
         if (!res.ok) {
           const msg = data?.error?.message || data?.error || JSON.stringify(data);
           throw new Error('Gemini: ' + msg);

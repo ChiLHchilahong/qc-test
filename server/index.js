@@ -48,9 +48,27 @@ app.post('/api/ai/gemini', async (req, res) => {
       body: JSON.stringify({ prompt: { text: prompt }, max_output_tokens })
     });
 
-    const data = await response.json();
+    const text = await response.text();
+
     if (!response.ok) {
-      return res.status(response.status).json({ error: data?.error || data });
+      let parsedError;
+      try {
+        parsedError = JSON.parse(text);
+      } catch (err) {
+        parsedError = text || `HTTP ${response.status}`;
+      }
+      return res.status(response.status).json({ error: parsedError });
+    }
+
+    if (!text || !text.trim()) {
+      return res.status(502).json({ error: 'Empty response from Gemini API' });
+    }
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (err) {
+      return res.status(502).json({ error: 'Invalid JSON from Gemini API', raw: text.slice(0, 1000) });
     }
 
     return res.json(data);
