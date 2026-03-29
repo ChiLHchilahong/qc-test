@@ -1,6 +1,9 @@
 import React from 'react';
+import { capitalizeDisplayName } from '../utils/textFormat';
 
 const VersionCard = ({ version, onRename, onDelete }) => {
+  const displayVersionName = capitalizeDisplayName(version.name);
+
   return (
     <div className="bg-white rounded-xl shadow p-6 hover:shadow-md transition-shadow cursor-pointer">
       <div className="flex items-center gap-3 mb-4">
@@ -8,7 +11,7 @@ const VersionCard = ({ version, onRename, onDelete }) => {
           📦
         </span>
         <div>
-          <h3 className="text-lg font-bold text-gray-800">{version.name}</h3>
+          <h3 className="text-lg font-bold text-gray-800">{displayVersionName}</h3>
           <p className="text-sm text-gray-500">{version.date}</p>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Bar } from 'react-chartjs-2';
+import { capitalizeDisplayName } from '../utils/textFormat';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -13,13 +14,15 @@ import {
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 const HealthChart = ({ projectName, versions = [] }) => {
+  const displayProjectName = capitalizeDisplayName(projectName);
+
   if (versions.length === 0) {
     return (
       <div className="rounded-[22px] border border-[#d8e0ec] bg-[#f8fafc] p-7">
         <div className="mb-6 flex items-start justify-between">
           <div>
             <h3 className="text-[36px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">
-              {projectName}
+              {displayProjectName}
             </h3>
             <p className="mt-2 text-sm font-semibold text-[#9aa8be]">Version progression</p>
           </div>
@@ -36,7 +39,7 @@ const HealthChart = ({ projectName, versions = [] }) => {
   }
 
   const data = {
-    labels: versions.map((v) => v.name),
+    labels: versions.map((v) => capitalizeDisplayName(v.name)),
     datasets: [
       {
         label: 'Failed',
@@ -117,7 +120,7 @@ const HealthChart = ({ projectName, versions = [] }) => {
       <div className="mb-5 flex items-start justify-between">
         <div>
           <h3 className="text-[36px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">
-            {projectName}
+            {displayProjectName}
           </h3>
           <p className="mt-2 text-sm font-semibold text-[#9aa8be]">Version progression</p>
         </div>

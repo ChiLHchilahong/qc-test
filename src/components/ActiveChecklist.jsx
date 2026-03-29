@@ -1,4 +1,5 @@
 import React from 'react';
+import { capitalizeDisplayName } from '../utils/textFormat';
 
 const STATUS_STYLES = {
   PENDING: 'bg-[#e8edf4] text-[#4d607e]',
@@ -8,6 +9,9 @@ const STATUS_STYLES = {
 };
 
 const ActiveChecklist = ({ checklist }) => {
+  const displayBuildName = capitalizeDisplayName(checklist.buildName);
+  const displayProjectName = capitalizeDisplayName(checklist.projectName);
+  const displayVersionName = capitalizeDisplayName(checklist.versionName);
   const statusClass = STATUS_STYLES[checklist.status] || STATUS_STYLES.PENDING;
   const total = Number(checklist.total || 0);
   const failed = Number(checklist.failed || 0);
@@ -46,11 +50,11 @@ const ActiveChecklist = ({ checklist }) => {
       </div>
 
       <h3 className="mt-7 line-clamp-1 text-[35px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">
-        {checklist.buildName}
+        {displayBuildName}
       </h3>
 
       <p className="mt-3 line-clamp-1 text-sm font-semibold text-[#6d7f99]">
-        Project: {checklist.projectName} <span className="px-1">·</span> Version: {checklist.versionName}
+        Project: {displayProjectName} <span className="px-1">·</span> Version: {displayVersionName}
       </p>
 
       <div className="mt-6">

@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getVersions, getProjects, createVersion, updateVersion, deleteVersion } from '../api/client';
 import VersionCard from '../components/VersionCard';
 import Modal from '../components/Modal';
+import { capitalizeDisplayName } from '../utils/textFormat';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -91,6 +92,8 @@ export default function ProjectDetail() {
     );
   }
 
+  const displayProjectName = capitalizeDisplayName(projectName);
+
   return (
     <div className="p-6">
       {/* Breadcrumb */}
@@ -99,12 +102,12 @@ export default function ProjectDetail() {
           Home
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-gray-900 font-medium">{projectName}</span>
+        <span className="text-gray-900 font-medium">{displayProjectName}</span>
       </nav>
 
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold text-gray-900">{projectName}</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{displayProjectName}</h1>
         <button
           onClick={() => {
             setNameInput('');

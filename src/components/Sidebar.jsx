@@ -1,5 +1,6 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 
 const navItems = [
   {
@@ -35,6 +36,14 @@ const navItems = [
 ];
 
 const Sidebar = () => {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
+
   return (
     <aside className="w-56 flex-shrink-0 flex flex-col border-r border-[#24324d] bg-[#1f2a42] text-[#d7e0f2]">
       {/* Logo */}
@@ -68,10 +77,16 @@ const Sidebar = () => {
       <div className="border-t border-[#2b3854] px-4 py-4">
         <div className="flex items-center gap-3 rounded-lg bg-[#222f4a] px-3 py-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#5f6fff] text-sm font-bold text-white">
-            C
+            {(user?.username?.[0] || 'U').toUpperCase()}
           </div>
-          <span className="text-sm font-semibold text-white">ChiLH</span>
+          <span className="text-sm font-semibold text-white">{user?.username || 'User'}</span>
         </div>
+        <button
+          onClick={handleLogout}
+          className="mt-3 w-full rounded-lg border border-[#3a4a68] px-3 py-2 text-sm font-semibold text-[#d3dbea] transition-colors hover:bg-[#2a3650] hover:text-white"
+        >
+          Logout
+        </button>
       </div>
     </aside>
   );

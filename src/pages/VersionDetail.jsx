@@ -11,6 +11,7 @@ import {
 } from '../api/client';
 import BuildCard from '../components/BuildCard';
 import Modal from '../components/Modal';
+import { capitalizeDisplayName } from '../utils/textFormat';
 
 export default function VersionDetail() {
   const { projectId, versionId } = useParams();
@@ -106,6 +107,9 @@ export default function VersionDetail() {
     );
   }
 
+  const displayProjectName = capitalizeDisplayName(projectName);
+  const displayVersionName = capitalizeDisplayName(versionName);
+
   return (
     <div className="mx-auto max-w-[1600px] px-1 py-2 md:px-2">
       {/* Breadcrumb */}
@@ -115,15 +119,15 @@ export default function VersionDetail() {
         </Link>
         <span className="mx-2">/</span>
         <Link to={`/projects/${projectId}`} className="transition-colors hover:text-[#2f5bff]">
-          {projectName}
+          {displayProjectName}
         </Link>
         <span className="mx-2">/</span>
-        <span className="font-semibold text-[#1b2b49]">{versionName}</span>
+        <span className="font-semibold text-[#1b2b49]">{displayVersionName}</span>
       </nav>
 
       {/* Header */}
       <div className="mb-2 flex items-center justify-between gap-3">
-        <h1 className="text-[44px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">{versionName}</h1>
+        <h1 className="text-[44px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">{displayVersionName}</h1>
         <button
           onClick={() => {
             setNameInput('');
@@ -223,7 +227,7 @@ export default function VersionDetail() {
         confirmVariant="danger"
       >
         <p className="text-gray-600">
-          Are you sure you want to delete <strong>{selectedBuild?.name}</strong>? All test cases
+          Are you sure you want to delete <strong>{capitalizeDisplayName(selectedBuild?.name)}</strong>? All test cases
           will be permanently removed.
         </p>
       </Modal>

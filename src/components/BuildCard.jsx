@@ -1,4 +1,5 @@
 import React from 'react';
+import { capitalizeDisplayName } from '../utils/textFormat';
 
 const getPassRateColor = (rate) => {
   if (rate === 0) return 'text-yellow-500';
@@ -7,6 +8,7 @@ const getPassRateColor = (rate) => {
 };
 
 const BuildCard = ({ build, onCopy, onRename, onDelete }) => {
+  const displayBuildName = capitalizeDisplayName(build.name);
   const passRate = build.totalCases > 0
     ? Math.round((build.passedCases / build.totalCases) * 100)
     : 0;
@@ -31,7 +33,7 @@ const BuildCard = ({ build, onCopy, onRename, onDelete }) => {
       </div>
 
       {/* Build info */}
-      <h3 className="mb-1 text-[38px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">{build.name}</h3>
+      <h3 className="mb-1 text-[38px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">{displayBuildName}</h3>
       <p className="mb-1 text-[32px] font-semibold leading-none text-[#0d1d3b]">{build.totalCases}</p>
       <p className="text-[34px] font-medium leading-none text-[#556987]">test cases</p>
       {statusText && (

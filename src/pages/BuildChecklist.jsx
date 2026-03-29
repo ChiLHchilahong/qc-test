@@ -6,6 +6,7 @@ import {
   importTestCases,
 } from '../api/client';
 import Modal from '../components/Modal';
+import { capitalizeDisplayName } from '../utils/textFormat';
 
 // ─── Config ───────────────────────────────────────────────
 const RESULT_CFG = {
@@ -833,7 +834,10 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" /></div>;
   if (error)   return <div className="p-6"><div className="bg-red-50 text-red-700 p-4 rounded-lg">{error}</div></div>;
 
-  const meta = { project: projectName, version: versionName, build: buildName };
+  const displayProjectName = capitalizeDisplayName(projectName);
+  const displayVersionName = capitalizeDisplayName(versionName);
+  const displayBuildName = capitalizeDisplayName(buildName);
+  const meta = { project: displayProjectName, version: displayVersionName, build: displayBuildName };
 
   const COLS = [
     { key: 'feature',     label: 'Feature (A)',               w: 120 },
@@ -850,14 +854,14 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
       <nav className="text-sm text-gray-500 mb-4">
         <Link to="/projects" className="hover:text-blue-600">Home</Link>
         <span className="mx-2">/</span>
-        <Link to={'/projects/' + projectId} className="hover:text-blue-600">{projectName}</Link>
+        <Link to={'/projects/' + projectId} className="hover:text-blue-600">{displayProjectName}</Link>
         <span className="mx-2">/</span>
-        <Link to={'/projects/' + projectId + '/versions/' + versionId} className="hover:text-blue-600">{versionName}</Link>
+        <Link to={'/projects/' + projectId + '/versions/' + versionId} className="hover:text-blue-600">{displayVersionName}</Link>
         <span className="mx-2">/</span>
-        <span className="text-gray-900 font-medium">{buildName}</span>
+        <span className="text-gray-900 font-medium">{displayBuildName}</span>
       </nav>
 
-      <h1 className="text-2xl font-bold text-gray-900 mb-4">{buildName}</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-4">{displayBuildName}</h1>
 
       {/* Stats */}
       <div className="flex flex-wrap gap-2 mb-4">
