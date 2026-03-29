@@ -729,7 +729,49 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
       alert('✅ Generate thành công!\n' + normalized.length + ' test cases đã import.');
       setTimeout(() => setAiProvider(''), 3000);
     } catch (e) {
-      alert('❌ Lỗi: ' + e.message);
+      // Fallback local: khi Gemini fail, tạo test case từ file content + prompt requirement
+      console.warn('Gemini failed, using local fallback:', e.message);
+      
+      try {
+        const fallbackCases = [];
+        const promptText = aiPrompt.trim();
+        const fileLines = fileContent.split('\n').filter((l) => l.trim());
+        
+        // Extract keywords từ prompt để hiểu intent
+        const promptKeywords = promptText.split(/[\s,.;:\-\/]+/).filter((x) => x.length > 2).slice(0, 5);
+        const mainFeature = promptKeywords[0] || 'Feature';
+        
+        // Tạo max 5 test case từ file content
+        const maxCases = Math.min(5, Math.max(2, Math.floor(fileLines.length / 3)));
+        
+        for (let i = 0; i < maxCases; i++) {
+          const lineIndex = Math.min(i * 3, fileLines.length - 1);
+          const sourceContent = fileLines[lineIndex] || '';
+          
+          fallbackCases.push({
+            feature: `${mainFeature} - Test ${i + 1}`,
+            description: `Kiểm thử theo yêu cầu: ${promptText.substring(0, 100)}... Dựa trên: "${sourceContent.substring(0, 80)}"`,
+            testToPerform: `1) Chuẩn bị: ${sourceContent.substring(0, 60)}. 2) Thực hiện theo yêu cầu: ${promptKeywords.slice(0, 2).join(' ')}. 3) Verify kết quả.`,
+            testStatus: 'Yes',
+            result: 'Not Run',
+            issue: '',
+            note: `Local fallback (Gemini: ${e.message.slice(0, 80)})`,
+          });
+        }
+        
+        if (fallbackCases.length > 0) {
+          handleImport(fallbackCases);
+          setFileContent('');
+          setAiFileName('');
+          setAiProvider('⚠️ Local (từ file + yêu cầu)');
+          alert('⚠️ Gemini API fail, đã tạo test case từ file content.\n' + fallbackCases.length + ' test cases đã import.');
+          setTimeout(() => setAiProvider(''), 3000);
+        } else {
+          throw new Error('Fallback failed: không đủ dữ liệu từ file');
+        }
+      } catch (fallbackErr) {
+        alert('❌ Lỗi: ' + e.message + '\n\nFallback local cũng fail: ' + fallbackErr.message);
+      }
     } finally {
       setAiGenLoading(false);
     }
