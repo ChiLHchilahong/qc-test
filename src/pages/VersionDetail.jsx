@@ -107,34 +107,34 @@ export default function VersionDetail() {
   }
 
   return (
-    <div className="p-6">
+    <div className="mx-auto max-w-[1600px] px-1 py-2 md:px-2">
       {/* Breadcrumb */}
-      <nav className="text-sm text-gray-500 mb-4">
-        <Link to="/projects" className="hover:text-blue-600 transition-colors">
+      <nav className="mb-4 text-sm text-[#7e8ea6]">
+        <Link to="/projects" className="transition-colors hover:text-[#2f5bff]">
           Home
         </Link>
         <span className="mx-2">/</span>
-        <Link to={`/projects/${projectId}`} className="hover:text-blue-600 transition-colors">
+        <Link to={`/projects/${projectId}`} className="transition-colors hover:text-[#2f5bff]">
           {projectName}
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-gray-900 font-medium">{versionName}</span>
+        <span className="font-semibold text-[#1b2b49]">{versionName}</span>
       </nav>
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold text-gray-900">{versionName}</h1>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h1 className="text-[44px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">{versionName}</h1>
         <button
           onClick={() => {
             setNameInput('');
             setShowCreateModal(true);
           }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+          className="rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#4f16df] px-5 py-3 text-lg font-bold text-white transition-opacity hover:opacity-95"
         >
           + New Build
         </button>
       </div>
-      <p className="text-gray-500 mb-6">Select a build to open its checklist</p>
+      <p className="mb-8 text-[33px] font-medium text-[#5f708a]">Select a build to open its checklist</p>
 
       {/* Grid */}
       {builds.length === 0 ? (
@@ -142,7 +142,7 @@ export default function VersionDetail() {
           <p className="text-gray-400 text-lg">No builds yet. Create one to get started.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {builds.map((build) => (
             <div
               key={build.id}

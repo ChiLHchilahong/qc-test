@@ -12,18 +12,24 @@ const RESULT_CFG = {
   'Not Run':   { bg: '#f1f5f9', color: '#64748b', border: '#cbd5e1' },
   Passed:      { bg: '#dcfce7', color: '#15803d', border: '#86efac' },
   Failed:      { bg: '#fee2e2', color: '#b91c1c', border: '#fca5a5' },
+  Warning:     { bg: '#fff7ed', color: '#c2410c', border: '#fdba74' },
   'In Progress': { bg: '#fef3c7', color: '#b45309', border: '#fcd34d' },
 };
 const RESULTS = Object.keys(RESULT_CFG);
+const TEST_STATUS_CFG = {
+  Yes: { bg: '#dcfce7', color: '#15803d' },
+  No: { bg: '#ffe4e6', color: '#be123c' },
+};
+const TEST_STATUS_OPTIONS = Object.keys(TEST_STATUS_CFG);
 
 const normalizeResult = (value) => {
   if (!value || typeof value !== 'string') return 'Not Run';
   const raw = value.trim().toLowerCase();
   if (raw === 'passed' || raw === 'pass') return 'Passed';
   if (raw === 'failed' || raw === 'fail') return 'Failed';
+  if (raw === 'warning' || raw === 'warn') return 'Warning';
   if (raw === 'in progress' || raw === 'in-progress' || raw === 'in_progress' || raw === 'inprogress') return 'In Progress';
   if (raw === 'not run' || raw === 'not-run' || raw === 'not_run' || raw === 'notrun') return 'Not Run';
-  if (raw === 'warning') return 'Failed';
   if (raw === 'blocked') return 'In Progress';
   // fallback: if matched any defined key ignoring case
   const key = Object.keys(RESULT_CFG).find((x) => x.toLowerCase() === raw);
@@ -32,14 +38,15 @@ const normalizeResult = (value) => {
 
 const getResultColor = (result) => {
   const normalized = normalizeResult(result);
-  if (normalized === 'Passed') return 'bg-green-100 text-green-700 border-green-300';
-  if (normalized === 'Failed') return 'bg-red-100 text-red-700 border-red-300';
-  if (normalized === 'In Progress') return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-  return 'bg-gray-100 text-gray-600 border-gray-300';
+  if (normalized === 'Passed') return 'bg-green-100 text-green-700 border-green-400';
+  if (normalized === 'Failed') return 'bg-red-100 text-red-700 border-red-400';
+  if (normalized === 'Warning') return 'bg-orange-100 text-orange-700 border-orange-400';
+  if (normalized === 'In Progress') return 'bg-yellow-100 text-yellow-700 border-yellow-400';
+  return 'bg-slate-100 text-slate-700 border-slate-300';
 };
 const getTestStatusColor = (status) => {
-  if (status === 'Yes') return 'bg-green-100 text-green-700 border-green-300';
-  if (status === 'No')  return 'bg-orange-100 text-orange-700 border-orange-300';
+  if (status === 'Yes') return 'bg-green-100 text-green-700 border-green-400';
+  if (status === 'No')  return 'bg-rose-100 text-rose-700 border-rose-400';
   return '';
 };
 
@@ -130,8 +137,11 @@ function exportCSV(testCases) {
 // ─── Export Excel ─────────────────────────────────────────
 async function exportToExcel(testCases, meta) {
   const XLSX = await loadXLSX();
-  const counts = { Passed: 0, Failed: 0, 'In Progress': 0, 'Not Run': 0 };
-  testCases.forEach((tc) => { if (counts[tc.result] !== undefined) counts[tc.result]++; });
+  const counts = { Passed: 0, Failed: 0, Warning: 0, 'In Progress': 0, 'Not Run': 0 };
+  testCases.forEach((tc) => {
+    const key = normalizeResult(tc.result);
+    if (counts[key] !== undefined) counts[key]++;
+  });
   const total = testCases.length;
   const rate = total > 0 ? Math.round(counts.Passed / total * 100) : 0;
   const wb = XLSX.utils.book_new();
@@ -140,8 +150,8 @@ async function exportToExcel(testCases, meta) {
     ['Project', meta.project], ['Version', meta.version], ['Build', meta.build],
     ['Tester', meta.tester], ['Date', new Date().toLocaleDateString('vi-VN')], [],
     ['SUMMARY'],
-    ['Total', 'Passed', 'Failed', 'In Progress', 'Not Run', 'Pass Rate'],
-    [total, counts.Passed, counts.Failed, counts['In Progress'], counts['Not Run'], rate + '%'],
+    ['Total', 'Passed', 'Failed', 'Warning', 'In Progress', 'Not Run', 'Pass Rate'],
+    [total, counts.Passed, counts.Failed, counts.Warning, counts['In Progress'], counts['Not Run'], rate + '%'],
   ]);
   const tcHeader = ['#', 'Feature', 'Test Case Description', 'Test To Perform', '?Test', 'Result', 'Issue (Jira)', 'Note'];
   const tcData = testCases.map((tc, i) => [i+1, tc.feature||'', tc.description||'', tc.testToPerform||tc.test_to_perform||'', tc.testStatus||tc.test_status||'', normalizeResult(tc.result), tc.issue||'', tc.note||'']);
@@ -157,6 +167,7 @@ async function exportToExcel(testCases, meta) {
 // 1. Sum-up email (theo mẫu bạn gửi)
 function buildSumUpHtml(testCases, meta, buildStatus) {
   const failed     = testCases.filter((tc) => normalizeResult(tc.result) === 'Failed');
+  const warning    = testCases.filter((tc) => normalizeResult(tc.result) === 'Warning');
   const passed     = testCases.filter((tc) => normalizeResult(tc.result) === 'Passed');
   const inProgress = testCases.filter((tc) => normalizeResult(tc.result) === 'In Progress');
   const notrun     = testCases.filter((tc) => normalizeResult(tc.result) === 'Not Run');
@@ -209,6 +220,7 @@ function buildSumUpHtml(testCases, meta, buildStatus) {
     + "<div style='padding:10px 18px;background:#f1f5f9;border-radius:8px;border:1px solid #e2e8f0;text-align:center;min-width:70px'><div style='font-size:20px;font-weight:700;color:#1e293b'>" + total + "</div><div style='font-size:11px;color:#64748b'>Total TC</div></div>"
     + "<div style='padding:10px 18px;background:#f0fdf4;border-radius:8px;border:1px solid #86efac;text-align:center;min-width:70px'><div style='font-size:20px;font-weight:700;color:#15803d'>" + passed.length + "</div><div style='font-size:11px;color:#15803d'>Passed</div></div>"
     + "<div style='padding:10px 18px;background:#fee2e2;border-radius:8px;border:1px solid #fca5a5;text-align:center;min-width:70px'><div style='font-size:20px;font-weight:700;color:#b91c1c'>" + failed.length + "</div><div style='font-size:11px;color:#b91c1c'>Failed</div></div>"
+    + "<div style='padding:10px 18px;background:#fff7ed;border-radius:8px;border:1px solid #fdba74;text-align:center;min-width:70px'><div style='font-size:20px;font-weight:700;color:#c2410c'>" + warning.length + "</div><div style='font-size:11px;color:#c2410c'>Warning</div></div>"
     + "<div style='padding:10px 18px;background:#fef3c7;border-radius:8px;border:1px solid #fcd34d;text-align:center;min-width:70px'><div style='font-size:20px;font-weight:700;color:#b45309'>" + inProgress.length + "</div><div style='font-size:11px;color:#b45309'>In Progress</div></div>"
     + "<div style='padding:10px 18px;background:#f1f5f9;border-radius:8px;border:1px solid #cbd5e1;text-align:center;min-width:70px'><div style='font-size:20px;font-weight:700;color:#64748b'>" + notrun.length + "</div><div style='font-size:11px;color:#64748b'>Not Run</div></div>"
     + "</div>"
@@ -237,8 +249,11 @@ function buildSumUpHtml(testCases, meta, buildStatus) {
 
 // 2. Full TC table email
 function buildFullHtml(testCases, meta) {
-  const counts = { Passed: 0, Failed: 0, 'In Progress': 0, 'Not Run': 0 };
-  testCases.forEach((tc) => { if (counts[tc.result] !== undefined) counts[tc.result]++; });
+  const counts = { Passed: 0, Failed: 0, Warning: 0, 'In Progress': 0, 'Not Run': 0 };
+  testCases.forEach((tc) => {
+    const key = normalizeResult(tc.result);
+    if (counts[key] !== undefined) counts[key]++;
+  });
   const total = testCases.length;
   const rate = total > 0 ? Math.round(counts.Passed / total * 100) : 0;
   const th = (h) => "<th style='padding:9px 12px;text-align:left;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-bottom:2px solid #e2e8f0;white-space:nowrap'>" + h + "</th>";
@@ -301,7 +316,7 @@ function ImportDropZone({ onParsed }) {
         rows = lines.slice(1).map((r) => ({
           feature: r[0]||'', description: r[1]||'', testToPerform: r[2]||'',
           testStatus: (r[3]||'').toLowerCase().includes('yes') ? 'Yes' : 'No',
-          result: (r[4]||'').toLowerCase().includes('pass') ? 'Passed' : (r[4]||'').toLowerCase().includes('fail') ? 'Failed' : 'Not Run',
+          result: normalizeResult(r[4] || 'Not Run'),
           issue: r[5]||'', note: r[6]||'',
         }));
       } else {
@@ -809,6 +824,7 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
     total: testCases.length,
     passed:     testCases.filter((t) => normalizeResult(t.result) === 'Passed').length,
     failed:     testCases.filter((t) => normalizeResult(t.result) === 'Failed').length,
+    warning:    testCases.filter((t) => normalizeResult(t.result) === 'Warning').length,
     inProgress: testCases.filter((t) => normalizeResult(t.result) === 'In Progress').length,
     notRun:     testCases.filter((t) => normalizeResult(t.result) === 'Not Run').length,
   };
@@ -846,10 +862,11 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
       {/* Stats */}
       <div className="flex flex-wrap gap-2 mb-4">
         {[
-          { l: 'Passed',      v: stats.passed,     c: 'bg-green-100 text-green-700' },
-          { l: 'Failed',      v: stats.failed,     c: 'bg-red-200 text-red-700' },
-          { l: 'In Progress', v: stats.inProgress, c: 'bg-yellow-100 text-yellow-700' },
-          { l: 'Not Run',     v: stats.notRun,     c: 'bg-gray-100 text-gray-600' },
+          { l: 'Passed',      v: stats.passed,     c: 'bg-green-100 text-green-700 border border-green-300' },
+          { l: 'Failed',      v: stats.failed,     c: 'bg-red-100 text-red-700 border border-red-300' },
+          { l: 'Warning',     v: stats.warning,    c: 'bg-orange-100 text-orange-700 border border-orange-300' },
+          { l: 'In Progress', v: stats.inProgress, c: 'bg-yellow-100 text-yellow-700 border border-yellow-300' },
+          { l: 'Not Run',     v: stats.notRun,     c: 'bg-slate-100 text-slate-700 border border-slate-300' },
         ].map((s) => <span key={s.l} className={'px-3 py-1 rounded-full text-sm font-semibold ' + s.c}>{s.l}: {s.v}</span>)}
       </div>
 
@@ -1007,12 +1024,20 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
                             style={{
                               opacity: locked ? 0.5 : 1,
                               cursor: locked ? 'not-allowed' : 'pointer',
-                              backgroundColor: 'transparent',
                             }}>
-                            <option value="Passed">Passed</option>
-                            <option value="Failed">Failed</option>
-                            <option value="In Progress">In Progress</option>
-                            <option value="Not Run">Not Run</option>
+                            {RESULTS.map((resultOption) => (
+                              <option
+                                key={resultOption}
+                                value={resultOption}
+                                style={{
+                                  backgroundColor: RESULT_CFG[resultOption].bg,
+                                  color: RESULT_CFG[resultOption].color,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {resultOption}
+                              </option>
+                            ))}
                           </select>
                         </td>
                       );
@@ -1022,9 +1047,20 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
                       <td key={col.key} className="px-3 py-2">
                         <select value={tcStatus}
                           onChange={(e) => handleUpdateTestStatus(tc, e.target.value)}
-                          className={'border rounded px-2 py-1 text-sm font-medium bg-white ' + getTestStatusColor(tcStatus)}>
-                          <option value="Yes">Yes</option>
-                          <option value="No">No</option>
+                          className={'border rounded px-2 py-1 text-sm font-medium ' + getTestStatusColor(tcStatus)}>
+                          {TEST_STATUS_OPTIONS.map((statusOption) => (
+                            <option
+                              key={statusOption}
+                              value={statusOption}
+                              style={{
+                                backgroundColor: TEST_STATUS_CFG[statusOption].bg,
+                                color: TEST_STATUS_CFG[statusOption].color,
+                                fontWeight: 700,
+                              }}
+                            >
+                              {statusOption}
+                            </option>
+                          ))}
                         </select>
                       </td>
                     );

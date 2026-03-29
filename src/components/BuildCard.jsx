@@ -16,44 +16,45 @@ const BuildCard = ({ build, onCopy, onRename, onDelete }) => {
     : '';
 
   return (
-    <div className="bg-white rounded-xl shadow p-6 hover:shadow-md transition-shadow cursor-pointer">
+    <div className="rounded-[16px] border border-[#d8e0ec] bg-[#f8fafc] p-6 transition-shadow hover:shadow-sm">
       {/* Icon + Pass Rate */}
-      <div className="flex items-start justify-between mb-3">
-        <span className="text-2xl" role="img" aria-label="build">
+      <div className="mb-5 flex items-start justify-between gap-3">
+        <span className="text-xl opacity-70" role="img" aria-label="build">
           🔧
         </span>
-        <div className="text-right">
-          <span className={`text-3xl font-bold ${getPassRateColor(passRate)}`}>
+        <div className="min-w-[88px] text-right">
+          <span className={`block text-[44px] font-extrabold leading-none ${getPassRateColor(passRate)}`}>
             {passRate}%
           </span>
-          <p className="text-xs text-gray-400 uppercase tracking-wide">Pass Rate</p>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#9aa8be]">Pass Rate</p>
         </div>
       </div>
 
       {/* Build info */}
-      <h3 className="text-lg font-bold text-gray-800 mb-1">{build.name}</h3>
-      <p className="text-sm text-gray-500 mb-1">{build.totalCases} test cases</p>
+      <h3 className="mb-1 text-[38px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">{build.name}</h3>
+      <p className="mb-1 text-[32px] font-semibold leading-none text-[#0d1d3b]">{build.totalCases}</p>
+      <p className="text-[34px] font-medium leading-none text-[#556987]">test cases</p>
       {statusText && (
-        <p className="text-xs text-gray-400">{statusText}</p>
+        <p className="mt-2 text-xs text-[#8b9ab0]">{statusText}</p>
       )}
 
       {/* Actions */}
-      <div className="flex items-center gap-2 pt-4 border-t border-gray-100 mt-4">
+      <div className="mt-6 flex items-center gap-2 border-t border-[#e2e8f0] pt-4">
         <button
-          onClick={(e) => { e.stopPropagation(); onCopy?.(build); }}
-          className="px-3 py-1 text-sm border border-blue-300 rounded-md text-blue-600 hover:bg-blue-50 transition-colors"
+          onClick={(e) => { e.stopPropagation(); onCopy?.(); }}
+          className="rounded-md border border-[#9fb5ff] px-3 py-1 text-sm text-[#2f5bff] transition-colors hover:bg-[#eaf0ff]"
         >
           Copy
         </button>
         <button
-          onClick={(e) => { e.stopPropagation(); onRename?.(build); }}
-          className="px-3 py-1 text-sm border border-gray-300 rounded-md text-gray-600 hover:bg-gray-50 transition-colors"
+          onClick={(e) => { e.stopPropagation(); onRename?.(); }}
+          className="rounded-md border border-[#bfc9d8] px-3 py-1 text-sm text-[#435774] transition-colors hover:bg-[#edf2f8]"
         >
           Rename
         </button>
         <button
-          onClick={(e) => { e.stopPropagation(); onDelete?.(build); }}
-          className="px-3 py-1 text-sm text-red-500 hover:text-red-700 transition-colors"
+          onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
+          className="px-3 py-1 text-sm text-[#ff335f] transition-colors hover:text-[#dc1847]"
         >
           Delete
         </button>

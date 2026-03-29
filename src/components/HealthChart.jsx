@@ -45,6 +45,12 @@ const HealthChart = ({ projectName, versions = [] }) => {
         borderRadius: 4,
       },
       {
+        label: 'Warning',
+        data: versions.map((v) => v.warning || 0),
+        backgroundColor: 'rgba(249, 115, 22, 0.85)',
+        borderRadius: 4,
+      },
+      {
         label: 'Passed',
         data: versions.map((v) => v.passed),
         backgroundColor: 'rgba(34, 197, 94, 0.8)',

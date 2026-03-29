@@ -17,6 +17,7 @@ router.get('/', (req, res) => {
         COUNT(tc.id) AS total,
         SUM(CASE WHEN tc.result = 'Passed' THEN 1 ELSE 0 END) AS passed,
         SUM(CASE WHEN tc.result = 'Failed' THEN 1 ELSE 0 END) AS failed,
+        SUM(CASE WHEN tc.result = 'Warning' THEN 1 ELSE 0 END) AS warning,
         SUM(CASE WHEN tc.result = 'Not Run' THEN 1 ELSE 0 END) AS not_run,
         SUM(CASE WHEN tc.test_status = 'Yes' THEN 1 ELSE 0 END) AS yes_count,
         SUM(CASE WHEN tc.test_status = 'To Do' THEN 1 ELSE 0 END) AS todo_count

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getDashboard } from '../api/client';
 import HealthChart from '../components/HealthChart';
 import ActiveChecklist from '../components/ActiveChecklist';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -62,7 +64,14 @@ export default function Dashboard() {
 
         <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
           {activeChecklists.map((checklist) => (
-            <div key={checklist.id}>
+            <div
+              key={checklist.id}
+              className="cursor-pointer"
+              onClick={() => {
+                if (!checklist.projectId || !checklist.versionId || !checklist.buildId) return;
+                navigate(`/projects/${checklist.projectId}/versions/${checklist.versionId}/builds/${checklist.buildId}`);
+              }}
+            >
               <ActiveChecklist checklist={checklist} />
             </div>
           ))}

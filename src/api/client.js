@@ -28,19 +28,32 @@ export const deleteTestCase = async (id) => {
 };
 
 export const importTestCases = async (buildId, rows) => {
-  const testCases = rows.map((r) => ({
-    buildId,
-    feature: r[0] || '',
-    description: r[1] || r[2] || '',
-    testToPerform: r[3] || '',
-    testStatus: r[4] || 'Yes',
-    result: r[5] || 'Not Run',
-    issue: r[6] || '',
-    note: r[7] || '',
-  }));
-  
-  const promises = testCases.map((tc) => createTestCase(tc.buildId, tc));
-  return Promise.all(promises);
+  const testCases = (Array.isArray(rows) ? rows : []).map((r) => {
+    if (Array.isArray(r)) {
+      return {
+        feature: r[0] || '',
+        description: r[1] || r[2] || '',
+        testToPerform: r[3] || '',
+        testStatus: r[4] || 'Yes',
+        result: r[5] || 'Not Run',
+        issue: r[6] || '',
+        note: r[7] || '',
+      };
+    }
+
+    return {
+      feature: r.feature || '',
+      description: r.description || '',
+      testToPerform: r.testToPerform || r.test_to_perform || '',
+      testStatus: r.testStatus || r.test_status || 'Yes',
+      result: r.result || 'Not Run',
+      issue: r.issue || '',
+      note: r.note || '',
+    };
+  });
+
+  const res = await api.post('/api/testcases/import', { buildId, testCases });
+  return res.data;
 };
 
 // ─── PROJECT ─────────────────────────
@@ -66,7 +79,11 @@ export const deleteProject = async (id) => {
 // ─── VERSION ─────────────────────────
 export const getVersions = async (projectId) => {
   const res = await api.get('/api/versions', { params: { projectId } });
-  return res.data;
+  return (Array.isArray(res.data) ? res.data : []).map((v) => ({
+    ...v,
+    buildCount: v.build_count ?? 0,
+    createdAt: v.created_at,
+  }));
 };
 
 export const createVersion = async (projectId, data) => {
@@ -86,7 +103,15 @@ export const deleteVersion = async (id) => {
 // ─── BUILD ─────────────────────────
 export const getBuilds = async (versionId) => {
   const res = await api.get('/api/builds', { params: { versionId } });
-  return res.data;
+  return (Array.isArray(res.data) ? res.data : []).map((b) => ({
+    ...b,
+    totalCases: b.total ?? 0,
+    passedCases: b.passed ?? 0,
+    failedCases: b.failed ?? 0,
+    warningCases: b.warning ?? 0,
+    notRunCases: b.not_run ?? 0,
+    createdAt: b.created_at,
+  }));
 };
 
 export const createBuild = async (versionId, data) => {
@@ -131,9 +156,43 @@ export const sendBugsToJira = async () => {
 
 // ─── DASHBOARD ─────────────────────────
 export const getDashboard = async () => {
-  const projects = await getProjects();
+  const res = await api.get('/api/reports/dashboard');
+  const payload = res.data || {};
+
+  const projects = (Array.isArray(payload.projects) ? payload.projects : []).map((p) => ({
+    ...p,
+    versionCount: p.version_count ?? (Array.isArray(p.versions) ? p.versions.length : 0),
+    versions: (Array.isArray(p.versions) ? p.versions : []).map((v) => ({
+      id: v.id,
+      name: v.name,
+      total: v.total ?? 0,
+      passed: v.passed ?? 0,
+      failed: v.failed ?? 0,
+      warning: v.warning ?? 0,
+      notRun: v.not_run ?? 0,
+    })),
+  }));
+
+  const checklists = (Array.isArray(payload.checklists) ? payload.checklists : []).map((c) => ({
+    id: c.build_id,
+    buildId: c.build_id,
+    projectId: c.project_id,
+    versionId: c.version_id,
+    buildName: c.build_name,
+    projectName: c.project_name,
+    versionName: c.version_name,
+    status: c.status,
+    executionPercent: c.execution_percentage ?? 0,
+    total: c.total ?? 0,
+    passed: c.passed ?? 0,
+    failed: c.failed ?? 0,
+    warning: c.warning ?? 0,
+    notRun: c.not_run ?? 0,
+    inProgress: c.in_progress ?? 0,
+  }));
+
   return {
     projects,
-    stats: {},
+    checklists,
   };
 };
