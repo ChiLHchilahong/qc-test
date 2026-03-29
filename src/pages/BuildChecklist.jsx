@@ -845,7 +845,7 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
         </button>
         <button 
           onClick={() => { setShowAISection(true); setShowImport(false); }} 
-          className={"px-4 py-2 rounded-lg font-medium text-sm " + (showAISection ? "bg-indigo-500 hover:bg-indigo-600 text-white" : "bg-indigo-100 hover:bg-indigo-200 text-indigo-700")}>
+          className={"px-4 py-2 rounded-lg font-medium text-sm " + (showAISection ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "bg-emerald-100 hover:bg-emerald-200 text-emerald-700")}>
           🤖 AI Generate (PDF/DOCX)
         </button>
         <button onClick={handleOpenJira} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium text-sm">Send to Jira</button>
@@ -980,19 +980,17 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
 
                     if (col.type === 'result') {
                       const res = tc.result || 'Not Run';
-                      const styleCfg = RESULT_CFG[res] || RESULT_CFG['Not Run'];
+                      const locked = tcStatus === 'No';
                       return (
                         <td key={col.key} className="px-3 py-2">
                           <select value={res}
                             onChange={(e) => handleUpdateResult(tc, e.target.value)}
-                            disabled={tcStatus === 'No'}
-                            className={'border rounded px-2 py-1 text-sm font-medium ' + getResultColor(res)}
+                            disabled={locked}
+                            className={"border rounded px-2 py-1 text-sm font-medium " + getResultColor(res)}
                             style={{
-                              opacity: tcStatus === 'No' ? 0.5 : 1,
-                              cursor: tcStatus === 'No' ? 'not-allowed' : 'pointer',
-                              backgroundColor: styleCfg.bg,
-                              color: styleCfg.color,
-                              borderColor: styleCfg.border,
+                              opacity: locked ? 0.5 : 1,
+                              cursor: locked ? 'not-allowed' : 'pointer',
+                              backgroundColor: 'transparent',
                             }}>
                             <option value="Passed">Passed</option>
                             <option value="Failed">Failed</option>
