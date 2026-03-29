@@ -657,73 +657,80 @@ export default function BuildChecklist() {
       let provider = '';
       let errors = [];
 
-      // Thử OpenAI trước nếu có key
+      // Thử OpenAI với nhiều model nếu có key
       if (aiApiKey.trim()) {
-        try {
-          const res = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${aiApiKey}`
-            },
-            body: JSON.stringify({
-              model: 'gpt-4o',
-              messages: [{ role: 'user', content: prompt }],
-              max_tokens: 2000
-            }),
-            signal: AbortSignal.timeout(30000)
-          });
+        const openAIModels = ['gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-3.5-turbo'];
+        for (const model of openAIModels) {
+          let openAiError = null;
+          try {
+            const res = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${aiApiKey}`
+              },
+              body: JSON.stringify({
+                model,
+                messages: [{ role: 'user', content: prompt }],
+                max_tokens: 2000
+              }),
+              signal: AbortSignal.timeout(30000)
+            });
 
-          if (res.ok) {
             const data = await res.json();
-            if (data.choices?.[0]?.message?.content) {
-              const text = data.choices[0].message.content;
-              const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
-              if (jsonMatch) {
-                testCases = JSON.parse(jsonMatch[0]);
-                provider = '🟢 OpenAI (GPT-4o)';
-              }
+            if (!res.ok) {
+              openAiError = data?.error?.message || `${res.status}`;
+              errors.push(`OpenAI (${model}): ${openAiError}`);
+              continue;
             }
-          } else {
-            const errData = await res.json();
-            errors.push('OpenAI: ' + (errData.error?.message || res.status));
+
+            const text = data?.choices?.[0]?.message?.content || '';
+            const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+            if (jsonMatch) {
+              testCases = JSON.parse(jsonMatch[0]);
+              provider = `🟢 OpenAI (${model})`;
+              break;
+            } else {
+              errors.push(`OpenAI (${model}): không parse được JSON trong response`);
+            }
+          } catch (e) {
+            openAiError = e.message;
+            errors.push(`OpenAI (${model}): ${openAiError}`);
           }
-        } catch (e) {
-          errors.push('OpenAI: ' + e.message);
+
+          if (testCases) break;
         }
       }
 
       // Fallback sang Claude nếu OpenAI fail hoặc không có key
       if (!testCases && aiClaudeKey.trim()) {
         try {
-          const res = await fetch('https://api.anthropic.com/v1/messages', {
+          const res = await fetch('https://api.anthropic.com/v1/complete', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'x-api-key': aiClaudeKey,
-              'anthropic-version': '2023-06-01'
+              'x-api-key': aiClaudeKey
             },
             body: JSON.stringify({
-              model: 'claude-sonnet-4-20250514',
-              max_tokens: 2000,
-              messages: [{ role: 'user', content: prompt }]
+              model: 'claude-3.1',
+              prompt: prompt,
+              max_tokens_to_sample: 2000
             }),
             signal: AbortSignal.timeout(30000)
           });
 
-          if (res.ok) {
-            const data = await res.json();
-            if (data.content?.[0]?.text) {
-              const text = data.content[0].text;
-              const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
-              if (jsonMatch) {
-                testCases = JSON.parse(jsonMatch[0]);
-                provider = '🔵 Claude';
-              }
-            }
+          const data = await res.json();
+          if (!res.ok) {
+            errors.push('Claude: ' + (data?.error?.message || data?.error || res.status));
           } else {
-            const errData = await res.json();
-            errors.push('Claude: ' + (errData.error?.message || res.status));
+            const text = data?.completion || data?.output_text || '';
+            const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+            if (jsonMatch) {
+              testCases = JSON.parse(jsonMatch[0]);
+              provider = '🔵 Claude';
+            } else {
+              errors.push('Claude: không parse được JSON trong response');
+            }
           }
         } catch (e) {
           errors.push('Claude: ' + e.message);
@@ -733,29 +740,29 @@ export default function BuildChecklist() {
       // Fallback sang Gemini nếu OpenAI + Claude fail
       if (!testCases && aiGeminiKey.trim()) {
         try {
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${aiGeminiKey}`, {
+          const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta2/models/text-bison-001:generate?key=${aiGeminiKey}`;
+          const res = await fetch(geminiEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: { maxOutputTokens: 2000 }
+              prompt: { text: prompt },
+              max_output_tokens: 2000
             }),
             signal: AbortSignal.timeout(30000)
           });
 
-          if (res.ok) {
-            const data = await res.json();
-            if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-              const text = data.candidates[0].content.parts[0].text;
-              const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
-              if (jsonMatch) {
-                testCases = JSON.parse(jsonMatch[0]);
-                provider = '🟡 Gemini (Free)';
-              }
-            }
+          const data = await res.json();
+          if (!res.ok) {
+            errors.push('Gemini: ' + (data?.error?.message || data?.error || res.status));
           } else {
-            const errData = await res.json();
-            errors.push('Gemini: ' + (errData.error?.message || res.status));
+            const text = data?.candidates?.[0]?.output || data?.output?.text || '';
+            const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+            if (jsonMatch) {
+              testCases = JSON.parse(jsonMatch[0]);
+              provider = '🟡 Gemini (Free)';
+            } else {
+              errors.push('Gemini: không parse được JSON trong response');
+            }
           }
         } catch (e) {
           errors.push('Gemini: ' + e.message);
