@@ -35,17 +35,17 @@ export default function Dashboard() {
   const activeChecklists = data?.checklists || [];
 
   return (
-    <div className="p-6 space-y-10">
+    <div className="mx-auto max-w-[1600px] space-y-12">
       {/* Project Health Analytics */}
       <section>
-        <h1 className="text-2xl font-bold text-gray-900">Project Health Analytics</h1>
-        <p className="text-gray-500 mt-1">Detailed Pass/Fail metrics per version</p>
+        <h1 className="text-[42px] font-extrabold leading-tight tracking-[-0.01em] text-[#0d1d3b]">
+          Project Health Analytics
+        </h1>
+        <p className="mt-2 text-lg text-[#63748e]">Detailed Pass/Fail metrics per version</p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-6">
+        <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-3 md:grid-cols-2">
           {projects.map((project) => (
-            <div key={project.id} className="bg-white rounded-xl shadow p-4">
-              <HealthChart projectName={project.name} versions={project.versions} />
-            </div>
+            <HealthChart key={project.id} projectName={project.name} versions={project.versions} />
           ))}
         </div>
 
@@ -56,11 +56,13 @@ export default function Dashboard() {
 
       {/* Active Checklists */}
       <section>
-        <h1 className="text-2xl font-bold text-gray-900">Active Checklists</h1>
+        <h2 className="text-[42px] font-extrabold leading-tight tracking-[-0.01em] text-[#0d1d3b]">
+          Active Checklists
+        </h2>
 
-        <div className="flex gap-4 mt-6 overflow-x-auto pb-4">
+        <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
           {activeChecklists.map((checklist) => (
-            <div key={checklist.id} className="min-w-[300px] flex-shrink-0">
+            <div key={checklist.id}>
               <ActiveChecklist checklist={checklist} />
             </div>
           ))}

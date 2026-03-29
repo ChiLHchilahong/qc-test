@@ -36,34 +36,43 @@ const navItems = [
 
 const Sidebar = () => {
   return (
-    <aside className="w-56 flex-shrink-0 flex flex-col" style={{ backgroundColor: '#1a1f36' }}>
+    <aside className="w-56 flex-shrink-0 flex flex-col border-r border-[#24324d] bg-[#1f2a42] text-[#d7e0f2]">
       {/* Logo */}
-      <div className="px-6 py-6">
-        <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">
-          QC SUITE
+      <div className="px-6 py-8">
+        <h1 className="text-[34px] leading-none font-extrabold tracking-tight text-white">
+          <span className="text-[#3e7bff]">QC</span> SUITE
         </h1>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 mt-4">
+      <nav className="mt-3 flex-1 space-y-1 px-3">
         {navItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
             end={item.path === '/'}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-6 py-3 text-sm font-medium transition-colors ${
+              `flex items-center gap-3 rounded-lg px-4 py-3 text-[15px] font-semibold transition-colors ${
                 isActive
-                  ? 'text-white border-l-4 border-blue-400 bg-white/10'
-                  : 'text-gray-400 border-l-4 border-transparent hover:text-white hover:bg-white/5'
+                  ? 'bg-[#34425d] text-white'
+                  : 'text-[#d3dbea] hover:bg-[#2c3853] hover:text-white'
               }`
             }
           >
-            {item.icon}
+            <span className="text-inherit">{item.icon}</span>
             {item.label}
           </NavLink>
         ))}
       </nav>
+
+      <div className="border-t border-[#2b3854] px-4 py-4">
+        <div className="flex items-center gap-3 rounded-lg bg-[#222f4a] px-3 py-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#5f6fff] text-sm font-bold text-white">
+            C
+          </div>
+          <span className="text-sm font-semibold text-white">ChiLH</span>
+        </div>
+      </div>
     </aside>
   );
 };

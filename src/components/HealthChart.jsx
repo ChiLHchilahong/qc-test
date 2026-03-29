@@ -15,11 +15,22 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 const HealthChart = ({ projectName, versions = [] }) => {
   if (versions.length === 0) {
     return (
-      <div className="bg-white rounded-xl shadow p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-800">{projectName}</h3>
+      <div className="rounded-[22px] border border-[#d8e0ec] bg-[#f8fafc] p-7">
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <h3 className="text-[36px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">
+              {projectName}
+            </h3>
+            <p className="mt-2 text-sm font-semibold text-[#9aa8be]">Version progression</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#a7b5ca]">Versions</p>
+            <p className="text-[36px] font-extrabold leading-none text-[#2f5bff]">0</p>
+          </div>
         </div>
-        <p className="text-gray-400 text-center py-8">No versions created yet.</p>
+        <div className="flex h-[186px] items-center justify-center rounded-xl bg-[#f0f4f9] text-sm font-medium text-[#9caac0]">
+          No versions created yet.
+        </div>
       </div>
     );
   }
@@ -47,11 +58,19 @@ const HealthChart = ({ projectName, versions = [] }) => {
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        position: 'bottom',
+        position: 'top',
+        align: 'end',
         labels: {
           usePointStyle: true,
           pointStyle: 'circle',
-          padding: 20,
+          padding: 16,
+          boxWidth: 8,
+          boxHeight: 8,
+          color: '#46566f',
+          font: {
+            size: 11,
+            weight: '600',
+          },
         },
       },
       title: {
@@ -60,24 +79,48 @@ const HealthChart = ({ projectName, versions = [] }) => {
     },
     scales: {
       x: {
+        border: { display: false },
         grid: { display: false },
+        ticks: {
+          color: '#5d6f8a',
+          font: {
+            size: 11,
+          },
+        },
       },
       y: {
         beginAtZero: true,
-        ticks: { stepSize: 1 },
+        ticks: {
+          stepSize: 1,
+          color: '#5d6f8a',
+          font: {
+            size: 11,
+          },
+        },
+        border: { display: false },
+        grid: {
+          color: '#e5ebf4',
+          drawTicks: false,
+        },
       },
     },
   };
 
   return (
-    <div className="bg-white rounded-xl shadow p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-gray-800">{projectName}</h3>
-        <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-          VERSIONS: {versions.length}
-        </span>
+    <div className="rounded-[22px] border border-[#d8e0ec] bg-[#f8fafc] p-7">
+      <div className="mb-5 flex items-start justify-between">
+        <div>
+          <h3 className="text-[36px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">
+            {projectName}
+          </h3>
+          <p className="mt-2 text-sm font-semibold text-[#9aa8be]">Version progression</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#a7b5ca]">Versions</p>
+          <p className="text-[36px] font-extrabold leading-none text-[#2f5bff]">{versions.length}</p>
+        </div>
       </div>
-      <div className="h-64">
+      <div className="h-[230px]">
         <Bar data={data} options={options} />
       </div>
     </div>

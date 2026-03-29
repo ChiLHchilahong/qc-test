@@ -1,65 +1,50 @@
 import React from 'react';
 
 const STATUS_STYLES = {
-  PENDING: 'bg-gray-200 text-gray-700',
-  'HAS BUGS': 'bg-red-500 text-white',
-  PASSED: 'bg-green-500 text-white',
+  PENDING: 'bg-[#e8edf4] text-[#4d607e]',
+  'HAS BUGS': 'bg-[#ffe6e3] text-[#d43b2f]',
+  PASSED: 'bg-[#e5f8ee] text-[#1a8f54]',
 };
 
 const ActiveChecklist = ({ checklist }) => {
   const statusClass = STATUS_STYLES[checklist.status] || STATUS_STYLES.PENDING;
 
   return (
-    <div className="bg-white rounded-xl shadow p-6">
-      {/* Status badge */}
-      <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase ${statusClass}`}>
-        {checklist.status}
-      </span>
+    <div className="rounded-[18px] border border-[#d8e0ec] bg-[#f8fafc] px-5 py-4">
+      <div className="flex items-start justify-between">
+        <span className={`inline-block rounded-full px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] ${statusClass}`}>
+          {checklist.status}
+        </span>
+        <button className="rounded-md p-1 text-[#8fa0bb] transition-colors hover:bg-[#edf2f8] hover:text-[#5c6f8c]" title="More actions">
+          <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path d="M10 4a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 7.5A1.5 1.5 0 1010 8a1.5 1.5 0 000 3.5zM10 19a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
+          </svg>
+        </button>
+      </div>
 
-      {/* Build name */}
-      <h3 className="text-xl font-bold text-gray-800 mt-3">
+      <h3 className="mt-7 line-clamp-1 text-[35px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">
         {checklist.buildName}
       </h3>
 
-      {/* Project + Version subtitle */}
-      <p className="text-sm text-gray-500 mt-1">
-        Project: {checklist.projectName} &bull; Version: {checklist.versionName}
+      <p className="mt-3 line-clamp-1 text-sm font-semibold text-[#6d7f99]">
+        Project: {checklist.projectName} <span className="px-1">·</span> Version: {checklist.versionName}
       </p>
 
-      {/* Test Execution */}
-      <div className="mt-4">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+      <div className="mt-6">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#5f708a]">
             Test Execution
           </span>
-          <span className="text-sm font-bold text-gray-700">
+          <span className="text-[40px] font-extrabold leading-none text-[#324766]">
             {checklist.executionPercent}%
           </span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="h-2.5 w-full rounded-full bg-[#d6dee8]">
           <div
-            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+            className="h-2.5 rounded-full bg-[#4f6ef7] transition-all duration-300"
             style={{ width: `${checklist.executionPercent}%` }}
           />
         </div>
-      </div>
-
-      {/* Action icons */}
-      <div className="flex items-center gap-3 mt-4 pt-3 border-t border-gray-100">
-        <button className="text-gray-400 hover:text-blue-500 transition-colors" title="View">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-          </svg>
-        </button>
-        <button className="text-gray-400 hover:text-blue-500 transition-colors" title="Edit">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-          </svg>
-        </button>
       </div>
     </div>
   );

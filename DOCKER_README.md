@@ -54,3 +54,19 @@ npm run dev
 ```
 
 > ⚠️ Cần Visual Studio Build Tools nếu trên Windows
+
+## Backup dữ liệu tự động
+
+Project đã có script backup để lưu toàn bộ dữ liệu quan trọng (SQLite + file env mẫu):
+
+```bash
+npm run backup
+```
+
+Sau khi chạy, backup nằm trong thư mục `backups/<timestamp>/` gồm:
+- `data/` (full SQLite files: `.db`, `.db-wal`, `.db-shm`)
+- `env/.env` (nếu tồn tại)
+- `env/.env.example`
+- `metadata.json`
+
+> Thư mục `backups/` đã được ignore trong git để tránh repo phình to khi deploy Render.
