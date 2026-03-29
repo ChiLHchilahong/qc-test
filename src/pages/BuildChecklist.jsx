@@ -770,10 +770,39 @@ export default function BuildChecklist() {
       }
 
       if (!testCases) {
+        const errDetails = errors.join(' | ');
+
         if (!aiApiKey.trim() && !aiClaudeKey.trim() && !aiGeminiKey.trim()) {
           throw new Error('Vui lòng nhập ít nhất 1 API key (OpenAI, Claude hoặc Gemini)');
         }
-        throw new Error('Không thể generate: ' + errors.join(' | '));
+
+        const fallback = window.confirm(
+          'Tất cả provider AI đều thất bại.\n\nLỗi: ' + errDetails +
+          '\n\nBạn có muốn thử fallback local (tạo mẫu test cases từ prompt)?'
+        );
+
+        if (!fallback) {
+          throw new Error('Không thể generate: ' + errDetails);
+        }
+
+        // Local fallback การ generate test cases cho trial
+        const fallbackCases = [];
+        const sourceLines = fileContent.split('\n').map((l) => l.trim()).filter(Boolean);
+        const maxGenerate = Math.min(6, sourceLines.length || 3);
+        for (let i = 0; i < maxGenerate; i++) {
+          fallbackCases.push({
+            feature: sourceLines[i] ? sourceLines[i].substring(0, 60) : 'Feature từ prompt',
+            description: 'Auto-generated testcase (' + (i + 1) + ') based on prompt: ' + aiPrompt.substring(0, 100),
+            testToPerform: '1) Đọc tài liệu, 2) Viết bước kiểm thử, 3) Chạy và verify',
+            testStatus: 'Yes',
+            result: 'Not Run',
+            issue: '',
+            note: 'Fallback local generation'
+          });
+        }
+
+        testCases = fallbackCases;
+        provider = '⚠️ Local fallback';
       }
 
       handleImport(testCases);
