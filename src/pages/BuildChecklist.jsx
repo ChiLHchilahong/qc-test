@@ -9,17 +9,17 @@ import Modal from '../components/Modal';
 
 // ─── Config ───────────────────────────────────────────────
 const RESULT_CFG = {
-  'Not Run': { bg: '#f1f5f9', color: '#64748b', border: '#cbd5e1' },
-  Passed:    { bg: '#dcfce7', color: '#15803d', border: '#86efac' },
-  Failed:    { bg: '#fee2e2', color: '#b91c1c', border: '#fca5a5' },
-  Blocked:   { bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' },
+  'Not Run':   { bg: '#f1f5f9', color: '#64748b', border: '#cbd5e1' },
+  Passed:      { bg: '#dcfce7', color: '#15803d', border: '#86efac' },
+  Failed:      { bg: '#fee2e2', color: '#b91c1c', border: '#fca5a5' },
+  'In Progress': { bg: '#fef3c7', color: '#b45309', border: '#fcd34d' },
 };
 const RESULTS = Object.keys(RESULT_CFG);
 
 const getResultColor = (result) => {
   if (result === 'Passed') return 'bg-green-100 text-green-700 border-green-300';
   if (result === 'Failed')  return 'bg-red-100 text-red-700 border-red-300';
-  if (result === 'Blocked') return 'bg-yellow-100 text-yellow-700 border-yellow-300';
+  if (result === 'In Progress') return 'bg-yellow-100 text-yellow-700 border-yellow-300';
   return 'bg-gray-100 text-gray-600 border-gray-300';
 };
 const getTestStatusColor = (status) => {
@@ -115,7 +115,7 @@ function exportCSV(testCases) {
 // ─── Export Excel ─────────────────────────────────────────
 async function exportToExcel(testCases, meta) {
   const XLSX = await loadXLSX();
-  const counts = { Passed: 0, Failed: 0, Blocked: 0, 'Not Run': 0 };
+  const counts = { Passed: 0, Failed: 0, 'In Progress': 0, 'Not Run': 0 };
   testCases.forEach((tc) => { if (counts[tc.result] !== undefined) counts[tc.result]++; });
   const total = testCases.length;
   const rate = total > 0 ? Math.round(counts.Passed / total * 100) : 0;
@@ -125,8 +125,8 @@ async function exportToExcel(testCases, meta) {
     ['Project', meta.project], ['Version', meta.version], ['Build', meta.build],
     ['Tester', meta.tester], ['Date', new Date().toLocaleDateString('vi-VN')], [],
     ['SUMMARY'],
-    ['Total', 'Passed', 'Failed', 'Blocked', 'Not Run', 'Pass Rate'],
-    [total, counts.Passed, counts.Failed, counts.Blocked, counts['Not Run'], rate + '%'],
+    ['Total', 'Passed', 'Failed', 'In Progress', 'Not Run', 'Pass Rate'],
+    [total, counts.Passed, counts.Failed, counts['In Progress'], counts['Not Run'], rate + '%'],
   ]);
   const tcHeader = ['#', 'Feature', 'Test Case Description', 'Test To Perform', '?Test', 'Result', 'Issue (Jira)', 'Note'];
   const tcData = testCases.map((tc, i) => [i+1, tc.feature||'', tc.description||'', tc.testToPerform||tc.test_to_perform||'', tc.testStatus||tc.test_status||'', tc.result||'', tc.issue||'', tc.note||'']);
@@ -141,10 +141,10 @@ async function exportToExcel(testCases, meta) {
 // ─── Email HTML builders ──────────────────────────────────
 // 1. Sum-up email (theo mẫu bạn gửi)
 function buildSumUpHtml(testCases, meta, buildStatus) {
-  const failed  = testCases.filter((tc) => tc.result === 'Failed');
-  const passed  = testCases.filter((tc) => tc.result === 'Passed');
-  const blocked = testCases.filter((tc) => tc.result === 'Blocked');
-  const notrun  = testCases.filter((tc) => !tc.result || tc.result === 'Not Run');
+  const failed     = testCases.filter((tc) => tc.result === 'Failed');
+  const passed     = testCases.filter((tc) => tc.result === 'Passed');
+  const inProgress = testCases.filter((tc) => tc.result === 'In Progress');
+  const notrun     = testCases.filter((tc) => !tc.result || tc.result === 'Not Run');
   const total   = testCases.length;
   const rate    = total > 0 ? Math.round(passed.length / total * 100) : 0;
   const today   = new Date().toLocaleDateString('vi-VN');
@@ -194,7 +194,7 @@ function buildSumUpHtml(testCases, meta, buildStatus) {
     + "<div style='padding:10px 18px;background:#f1f5f9;border-radius:8px;border:1px solid #e2e8f0;text-align:center;min-width:70px'><div style='font-size:20px;font-weight:700;color:#1e293b'>" + total + "</div><div style='font-size:11px;color:#64748b'>Total TC</div></div>"
     + "<div style='padding:10px 18px;background:#f0fdf4;border-radius:8px;border:1px solid #86efac;text-align:center;min-width:70px'><div style='font-size:20px;font-weight:700;color:#15803d'>" + passed.length + "</div><div style='font-size:11px;color:#15803d'>Passed</div></div>"
     + "<div style='padding:10px 18px;background:#fee2e2;border-radius:8px;border:1px solid #fca5a5;text-align:center;min-width:70px'><div style='font-size:20px;font-weight:700;color:#b91c1c'>" + failed.length + "</div><div style='font-size:11px;color:#b91c1c'>Failed</div></div>"
-    + "<div style='padding:10px 18px;background:#fff7ed;border-radius:8px;border:1px solid #fed7aa;text-align:center;min-width:70px'><div style='font-size:20px;font-weight:700;color:#c2410c'>" + blocked.length + "</div><div style='font-size:11px;color:#c2410c'>Blocked</div></div>"
+    + "<div style='padding:10px 18px;background:#fef3c7;border-radius:8px;border:1px solid #fcd34d;text-align:center;min-width:70px'><div style='font-size:20px;font-weight:700;color:#b45309'>" + inProgress.length + "</div><div style='font-size:11px;color:#b45309'>In Progress</div></div>"
     + "<div style='padding:10px 18px;background:#f1f5f9;border-radius:8px;border:1px solid #cbd5e1;text-align:center;min-width:70px'><div style='font-size:20px;font-weight:700;color:#64748b'>" + notrun.length + "</div><div style='font-size:11px;color:#64748b'>Not Run</div></div>"
     + "</div>"
 
@@ -222,7 +222,7 @@ function buildSumUpHtml(testCases, meta, buildStatus) {
 
 // 2. Full TC table email
 function buildFullHtml(testCases, meta) {
-  const counts = { Passed: 0, Failed: 0, Blocked: 0, 'Not Run': 0 };
+  const counts = { Passed: 0, Failed: 0, 'In Progress': 0, 'Not Run': 0 };
   testCases.forEach((tc) => { if (counts[tc.result] !== undefined) counts[tc.result]++; });
   const total = testCases.length;
   const rate = total > 0 ? Math.round(counts.Passed / total * 100) : 0;
@@ -458,7 +458,7 @@ export default function BuildChecklist() {
   const [buildName, setBuildName] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showImport, setShowImport] = useState(false);
+  const [showImport, setShowImport] = useState(true);
   const [importLoading, setImportLoading] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [jiraTc, setJiraTc] = useState(null);
@@ -790,10 +790,10 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
 
   const stats = {
     total: testCases.length,
-    passed:  testCases.filter((t) => t.result === 'Passed').length,
-    failed:  testCases.filter((t) => t.result === 'Failed').length,
-    blocked: testCases.filter((t) => t.result === 'Blocked').length,
-    notRun:  testCases.filter((t) => !t.result || t.result === 'Not Run').length,
+    passed:     testCases.filter((t) => t.result === 'Passed').length,
+    failed:     testCases.filter((t) => t.result === 'Failed').length,
+    inProgress: testCases.filter((t) => t.result === 'In Progress').length,
+    notRun:     testCases.filter((t) => !t.result || t.result === 'Not Run').length,
   };
   const passRate = stats.total > 0 ? Math.round(stats.passed / stats.total * 100) : 0;
 
@@ -829,10 +829,10 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
       {/* Stats */}
       <div className="flex flex-wrap gap-2 mb-4">
         {[
-          { l: 'Passed',   v: stats.passed,   c: 'bg-green-100 text-green-700' },
-          { l: 'Failed',   v: stats.failed,   c: 'bg-red-200 text-red-700' },
-          { l: 'Blocked',  v: stats.blocked,  c: 'bg-yellow-100 text-yellow-700' },
-          { l: 'Not Run',  v: stats.notRun,   c: 'bg-gray-100 text-gray-600' },
+          { l: 'Passed',      v: stats.passed,     c: 'bg-green-100 text-green-700' },
+          { l: 'Failed',      v: stats.failed,     c: 'bg-red-200 text-red-700' },
+          { l: 'In Progress', v: stats.inProgress, c: 'bg-yellow-100 text-yellow-700' },
+          { l: 'Not Run',     v: stats.notRun,     c: 'bg-gray-100 text-gray-600' },
         ].map((s) => <span key={s.l} className={'px-3 py-1 rounded-full text-sm font-semibold ' + s.c}>{s.l}: {s.v}</span>)}
       </div>
 
@@ -987,7 +987,7 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
                           style={{ opacity: tcStatus === 'No' ? 0.5 : 1, cursor: tcStatus === 'No' ? 'not-allowed' : 'pointer' }}>
                           <option value="Passed">Passed</option>
                           <option value="Failed">Failed</option>
-                          <option value="Blocked">Blocked</option>
+                          <option value="In Progress">In Progress</option>
                           <option value="Not Run">Not Run</option>
                         </select>
                       </td>
