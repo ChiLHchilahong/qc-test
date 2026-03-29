@@ -7,180 +7,108 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// ── LOCAL STORAGE ─────────────────────────
-const getLS = (key) => JSON.parse(localStorage.getItem(key) || '[]');
-const setLS = (key, data) => localStorage.setItem(key, JSON.stringify(data));
-
-const LS_PROJECT = 'qc_projects';
-const LS_VERSION = 'qc_versions';
-const LS_BUILD = 'qc_builds';
-const LS_TC = 'qc_testcases';
-
-// ── PROJECT ─────────────────────────
-export const getProjects = async () => getLS(LS_PROJECT);
-
-export const createProject = async (data) => {
-  const list = getLS(LS_PROJECT);
-  const newItem = {
-    id: Date.now(),
-    name: data.name,
-    created: new Date().toLocaleDateString(),
-  };
-  const updated = [...list, newItem];
-  setLS(LS_PROJECT, updated);
-  return newItem;
+// ─── TEST CASE ─────────────────────────
+export const getTestCases = async (buildId) => {
+  const res = await api.get('/api/testcases', { params: { buildId } });
+  return res.data;
 };
-
-export const updateProject = async (id, data) => {
-  const list = getLS(LS_PROJECT);
-  setLS(
-    LS_PROJECT,
-    list.map((p) => (p.id === id ? { ...p, ...data } : p))
-  );
-};
-
-export const deleteProject = async (id) => {
-  setLS(
-    LS_PROJECT,
-    getLS(LS_PROJECT).filter((p) => p.id !== id)
-  );
-};
-
-// ── VERSION ─────────────────────────
-export const getVersions = async (projectId) =>
-  getLS(LS_VERSION).filter((v) => v.projectId === Number(projectId));
-
-export const createVersion = async (projectId, data) => {
-  const list = getLS(LS_VERSION);
-  const newItem = {
-    id: Date.now(),
-    projectId: Number(projectId),
-    name: data.name,
-  };
-  setLS(LS_VERSION, [...list, newItem]);
-  return newItem;
-};
-
-export const updateVersion = async (id, data) => {
-  setLS(
-    LS_VERSION,
-    getLS(LS_VERSION).map((v) =>
-      v.id === id ? { ...v, ...data } : v
-    )
-  );
-};
-
-export const deleteVersion = async (id) => {
-  setLS(
-    LS_VERSION,
-    getLS(LS_VERSION).filter((v) => v.id !== id)
-  );
-};
-
-// ── BUILD ─────────────────────────
-export const getBuilds = async (versionId) =>
-  getLS(LS_BUILD).filter((b) => b.versionId === Number(versionId));
-
-export const createBuild = async (versionId, data) => {
-  const list = getLS(LS_BUILD);
-  const newItem = {
-    id: Date.now(),
-    versionId: Number(versionId),
-    name: data.name,
-  };
-  setLS(LS_BUILD, [...list, newItem]);
-  return newItem;
-};
-
-export const updateBuild = async (id, data) => {
-  setLS(
-    LS_BUILD,
-    getLS(LS_BUILD).map((b) =>
-      b.id === id ? { ...b, ...data } : b
-    )
-  );
-};
-
-export const deleteBuild = async (id) => {
-  setLS(
-    LS_BUILD,
-    getLS(LS_BUILD).filter((b) => b.id !== id)
-  );
-};
-
-export const copyBuild = async (id) => {
-  const list = getLS(LS_BUILD);
-  const original = list.find((b) => b.id === id);
-  if (!original) return null;
-
-  const newItem = {
-    ...original,
-    id: Date.now(),
-    name: original.name + ' (Copy)',
-  };
-
-  setLS(LS_BUILD, [...list, newItem]);
-  return newItem;
-};
-
-// ── TEST CASE ─────────────────────────
-export const getTestCases = async (buildId) =>
-  getLS(LS_TC).filter((t) => t.buildId === Number(buildId));
 
 export const createTestCase = async (buildId, data) => {
-  const list = getLS(LS_TC);
-  const newItem = {
-    id: Date.now(),
-    buildId: Number(buildId),
-    ...data,
-  };
-  setLS(LS_TC, [...list, newItem]);
-  return newItem;
+  const res = await api.post('/api/testcases', { buildId, ...data });
+  return res.data;
 };
 
 export const updateTestCase = async (id, data) => {
-  setLS(
-    LS_TC,
-    getLS(LS_TC).map((t) =>
-      t.id === id ? { ...t, ...data } : t
-    )
-  );
+  const res = await api.put(`/api/testcases/${id}`, data);
+  return res.data;
 };
 
 export const deleteTestCase = async (id) => {
-  setLS(
-    LS_TC,
-    getLS(LS_TC).filter((t) => t.id !== id)
-  );
+  await api.delete(`/api/testcases/${id}`);
 };
 
-export const importTestCases = async (buildId, testCases) => {
-  const list = getLS(LS_TC);
-  const mapped = testCases.map((t) => ({
-    id: Date.now() + Math.random(),
-    buildId: Number(buildId),
-    ...t,
+export const importTestCases = async (buildId, rows) => {
+  const testCases = rows.map((r) => ({
+    buildId,
+    feature: r[0] || '',
+    description: r[1] || r[2] || '',
+    testToPerform: r[3] || '',
+    testStatus: r[4] || 'Yes',
+    result: r[5] || 'Not Run',
+    issue: r[6] || '',
+    note: r[7] || '',
   }));
-  setLS(LS_TC, [...list, ...mapped]);
+  
+  const promises = testCases.map((tc) => createTestCase(tc.buildId, tc));
+  return Promise.all(promises);
 };
 
-// ── JIRA (FAKE) ─────────────────────────
-export const createJiraIssue = async () => {
-  alert('Fake Jira created ✅');
+// ─── PROJECT ─────────────────────────
+export const getProjects = async () => {
+  const res = await api.get('/api/projects');
+  return res.data;
 };
 
-export const sendBugsToJira = async () => {
-  alert('Sent bugs to Jira ✅');
+export const createProject = async (data) => {
+  const res = await api.post('/api/projects', { name: data.name });
+  return res.data;
 };
 
-// ── DASHBOARD ─────────────────────────
-export const getDashboard = async () => {
-  return {
-    projects: getLS(LS_PROJECT),
-    stats: {},
-  };
+export const updateProject = async (id, data) => {
+  const res = await api.put(`/api/projects/${id}`, data);
+  return res.data;
 };
-// ── JIRA CONFIG ─────────────────────────
+
+export const deleteProject = async (id) => {
+  await api.delete(`/api/projects/${id}`);
+};
+
+// ─── VERSION ─────────────────────────
+export const getVersions = async (projectId) => {
+  const res = await api.get('/api/versions', { params: { projectId } });
+  return res.data;
+};
+
+export const createVersion = async (projectId, data) => {
+  const res = await api.post('/api/versions', { projectId, name: data.name });
+  return res.data;
+};
+
+export const updateVersion = async (id, data) => {
+  const res = await api.put(`/api/versions/${id}`, data);
+  return res.data;
+};
+
+export const deleteVersion = async (id) => {
+  await api.delete(`/api/versions/${id}`);
+};
+
+// ─── BUILD ─────────────────────────
+export const getBuilds = async (versionId) => {
+  const res = await api.get('/api/builds', { params: { versionId } });
+  return res.data;
+};
+
+export const createBuild = async (versionId, data) => {
+  const res = await api.post('/api/builds', { versionId, name: data.name });
+  return res.data;
+};
+
+export const updateBuild = async (id, data) => {
+  const res = await api.put(`/api/builds/${id}`, data);
+  return res.data;
+};
+
+export const deleteBuild = async (id) => {
+  await api.delete(`/api/builds/${id}`);
+};
+
+export const copyBuild = async (id) => {
+  const res = await api.post(`/api/builds/${id}/copy`, { name: '' });
+  return res.data;
+};
+
+// ─── JIRA CONFIG ─────────────────────────
 const LS_JIRA = 'qc_jira_config';
 
 export const getJiraConfig = async () => {
@@ -190,4 +118,22 @@ export const getJiraConfig = async () => {
 export const updateJiraConfig = async (data) => {
   localStorage.setItem(LS_JIRA, JSON.stringify(data));
   return true;
+};
+
+// ─── JIRA (FAKE) ─────────────────────────
+export const createJiraIssue = async () => {
+  alert('Fake Jira created ✅');
+};
+
+export const sendBugsToJira = async () => {
+  alert('Sent bugs to Jira ✅');
+};
+
+// ─── DASHBOARD ─────────────────────────
+export const getDashboard = async () => {
+  const projects = await getProjects();
+  return {
+    projects,
+    stats: {},
+  };
 };
