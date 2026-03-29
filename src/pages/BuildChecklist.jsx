@@ -636,129 +636,97 @@ export default function BuildChecklist() {
   }
 
   async function generateTestCases() {
-    if (!fileContent.trim()) {
-      alert('Vui lòng import file trước!');
-      return;
-    }
-    if (!aiPrompt.trim()) {
-      alert('Vui lòng nhập prompt!');
-      return;
-    }
+    if (!fileContent.trim()) { alert('Vui lòng import file trước!'); return; }
+    if (!aiPrompt.trim()) { alert('Vui lòng nhập yêu cầu/prompt!'); return; }
+    if (!aiGeminiKey.trim()) { alert('Vui lòng nhập Gemini API key!'); return; }
 
     setAiGenLoading(true);
     try {
-      const prompt = `Bạn là QA automation engineer. Hãy phân tích tài liệu dưới đây và tạo test cases.\n\nTài liệu:\n${fileContent}\n\nYêu cầu: ${aiPrompt}\n\nHãy tạo test cases theo format JSON array (chỉ trả về JSON, không có text khác):\n[\n  {\n    "feature": "Feature name",\n    "description": "Test description",\n    "testToPerform": "Steps",\n    "testStatus": "Yes",
-    "result": "Not Run",
-    "note": "Notes"\n  }\n]`;
+      // Prompt rõ ràng, tách system khỏi content tài liệu
+      const systemInstruction = `Bạn là QA engineer chuyên nghiệp. Nhiệm vụ: phân tích tài liệu và tạo test cases chi tiết.
+QUAN TRỌNG: Chỉ trả về JSON array thuần túy, KHÔNG có markdown, KHÔNG có text giải thích.
+Format mỗi test case:
+{
+  "feature": "Tên feature/module (ngắn gọn)",
+  "description": "Mô tả cụ thể những gì cần test (1-2 câu)",
+  "testToPerform": "Bước 1: ... | Bước 2: ... | Bước 3: ... (các bước thực hiện cụ thể)",
+  "testStatus": "Yes",
+  "result": "Not Run",
+  "note": ""
+}`;
 
-      let testCases = null;
-      let provider = '';
-      let errors = [];
+      const userMessage = `Tài liệu cần phân tích:
+---
+${fileContent}
+---
 
-      if (!aiGeminiKey.trim()) {
-        throw new Error('Vui lòng nhập Gemini API key trong phần AI Generate');
+Yêu cầu từ người dùng: ${aiPrompt}
+
+Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
+
+      const fullPrompt = systemInstruction + '\n\n' + userMessage;
+
+      const res = await fetch('/api/ai/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: fullPrompt, apiKey: aiGeminiKey, max_output_tokens: 4000 }),
+        signal: AbortSignal.timeout(60000),
+      });
+
+      const rawText = await res.text();
+      let data;
+      try { data = rawText ? JSON.parse(rawText) : null; }
+      catch { throw new Error('Server trả về response không hợp lệ: ' + rawText.slice(0, 300)); }
+
+      if (!res.ok) {
+        const msg = typeof data?.error === 'string' ? data.error : (data?.error?.message || JSON.stringify(data?.error) || 'Lỗi không xác định');
+        throw new Error('Gemini lỗi: ' + msg);
       }
 
-      try {
-        const res = await fetch('/api/ai/gemini', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, apiKey: aiGeminiKey, max_output_tokens: 2000 }),
-          signal: AbortSignal.timeout(30000)
-        });
+      // Server trả về { output: "..." }
+      const text = (data?.output || '').trim();
+      if (!text) throw new Error('Gemini không trả về nội dung. Thử lại hoặc kiểm tra API key.');
 
-        const rawText = await res.text();
-        let data;
-        try {
-          data = rawText ? JSON.parse(rawText) : null;
-        } catch (err) {
-          throw new Error('Gemini: proxy returned invalid JSON: ' + rawText.slice(0, 500));
-        }
+      // Parse JSON từ response
+      let parsed = null;
+      const tryParse = (s) => { try { return JSON.parse(s); } catch { return null; } };
 
-        if (!res.ok) {
-          const msg = data?.error?.message || data?.error || JSON.stringify(data);
-          throw new Error('Gemini: ' + msg);
-        }
+      // Thử parse trực tiếp
+      parsed = tryParse(text);
 
-        const text = (data?.candidates?.[0]?.output || data?.output?.text || '').trim();
-        if (!text) {
-          throw new Error('Gemini: response không có nội dung');
-        }
-
-        let parsed = null;
-        const tryParse = (input) => {
-          try {
-            return JSON.parse(input);
-          } catch (err) {
-            return null;
-          }
-        };
-
-        // Ưu tiên xử lý JSON chuẩn
-        parsed = tryParse(text);
-
-        // Nếu không phải JSON chuẩn, tìm mảng JSON trong text
-        if (!parsed) {
-          const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
-          if (jsonMatch) {
-            parsed = tryParse(jsonMatch[0]);
-          }
-        }
-
-        // Nếu vẫn chưa được mà là object JSON, bọc mảng
-        if (!parsed) {
-          const objectMatch = text.match(/\{[\s\S]*\}/);
-          if (objectMatch) {
-            const obj = tryParse(objectMatch[0]);
-            if (obj && typeof obj === 'object') {
-              parsed = [obj];
-            }
-          }
-        }
-
-        if (!parsed || !Array.isArray(parsed)) {
-          throw new Error('Gemini: không parse được JSON từ response: ' + text.slice(0, 400));
-        }
-
-        testCases = parsed;
-        provider = '🟡 Gemini';
-      } catch (e) {
-        errors.push(e.message);
+      // Nếu có markdown code block
+      if (!parsed) {
+        const mdMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (mdMatch) parsed = tryParse(mdMatch[1].trim());
       }
 
-      if (!testCases) {
-        console.warn('Gemini failed, trying fallback local', errors);
-        
-        // Fallback: tạo test cases từ prompt + fileContent (khi Gemini không xong)
-        const fallbackCases = [];
-        const promptText = aiPrompt.trim();
-        const promptKeywords = promptText.split(/[\s,.;:\-\/]+/).filter((x) => x.length > 3);
-        const baseFeature = promptKeywords.slice(0, 4).join(' ') || 'Feature';
-        const firstLine = fileContent.split('\n').find((l) => l.trim()) || '';
-        const maxGenerate = 4;
-
-        for (let i = 0; i < maxGenerate; i++) {
-          const scenario = promptKeywords[i] || promptKeywords[0] || 'scenario';
-          fallbackCases.push({
-            feature: `${baseFeature} - mục ${i + 1}`,
-            description: `Kiểm thử '${scenario}' theo yêu cầu: ${promptText.substring(0, 120)}`,
-            testToPerform: `Bước 1: Mở ứng dụng; Bước 2: Thực hiện ${scenario}; Bước 3: Verify kết quả; Bước 4: Ghi log nếu lỗi.`,
-            testStatus: 'Yes',
-            result: 'Not Run',
-            issue: '',
-            note: `Fallback local (Gemini error: ${errors.join(' | ').slice(0, 100)})`
-          });
-        }
-
-        testCases = fallbackCases;
-        provider = '⚠️ Local fallback (do Gemini fail)';
+      // Tìm JSON array trong text
+      if (!parsed) {
+        const arrMatch = text.match(/\[[\s\S]*\]/);
+        if (arrMatch) parsed = tryParse(arrMatch[0]);
       }
 
-      handleImport(testCases);
+      if (!parsed || !Array.isArray(parsed)) {
+        throw new Error('Không parse được JSON. Response: ' + text.slice(0, 300));
+      }
+
+      // Normalize các field
+      const normalized = parsed.map((tc) => ({
+        feature:       tc.feature || tc.Feature || tc.module || '',
+        description:   tc.description || tc.Description || tc.title || tc.name || '',
+        testToPerform: tc.testToPerform || tc.steps || tc.test_to_perform || tc['Test Steps'] || '',
+        testStatus:    'Yes',
+        result:        'Not Run',
+        note:          tc.note || tc.notes || tc.expected || '',
+      })).filter((tc) => tc.description.trim());
+
+      if (!normalized.length) throw new Error('Không có test case hợp lệ nào được tạo ra.');
+
+      handleImport(normalized);
       setFileContent('');
       setAiFileName('');
-      setAiProvider(provider);
-      alert(`✅ Generate thành công (${provider})!\n${testCases.length} test cases đã import.`);
+      setAiProvider('Gemini');
+      alert('✅ Generate thành công!\n' + normalized.length + ' test cases đã import.');
       setTimeout(() => setAiProvider(''), 3000);
     } catch (e) {
       alert('❌ Lỗi: ' + e.message);
