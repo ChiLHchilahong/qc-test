@@ -19,7 +19,6 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
@@ -31,7 +30,7 @@ app.use('/api/testcases', testcasesRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/jira', jiraRouter);
 
-// AI route proxy Gemini to avoid CORS from client
+// ── AI proxy route (Gemini 2.0 Flash) ─────────────────────
 app.post('/api/ai/gemini', async (req, res) => {
   try {
     const { prompt, apiKey, max_output_tokens = 2000 } = req.body || {};
@@ -41,39 +40,50 @@ app.post('/api/ai/gemini', async (req, res) => {
       return res.status(400).json({ error: 'Missing prompt or API key' });
     }
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta2/models/text-bison-001:generate?key=${encodeURIComponent(key)}`;
+    // Dùng Gemini 2.0 Flash (model mới nhất, miễn phí)
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`;
+
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: { text: prompt }, max_output_tokens })
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          maxOutputTokens: max_output_tokens,
+          temperature: 0.3,
+        }
+      })
     });
 
     const text = await response.text();
 
     if (!response.ok) {
       let parsedError;
-      try {
-        parsedError = JSON.parse(text);
-      } catch (err) {
-        parsedError = text || `HTTP ${response.status}`;
-      }
+      try { parsedError = JSON.parse(text); }
+      catch { parsedError = { message: text || `HTTP ${response.status}` }; }
+      console.error('Gemini error:', parsedError);
       return res.status(response.status).json({ error: parsedError });
     }
 
-    if (!text || !text.trim()) {
-      return res.status(502).json({ error: 'Empty response from Gemini API' });
-    }
-
     let data;
-    try {
-      data = JSON.parse(text);
-    } catch (err) {
-      return res.status(502).json({ error: 'Invalid JSON from Gemini API', raw: text.slice(0, 1000) });
+    try { data = JSON.parse(text); }
+    catch { return res.status(502).json({ error: 'Invalid JSON from Gemini', raw: text.slice(0, 500) }); }
+
+    // Extract text from Gemini v1beta response format
+    const outputText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (!outputText) {
+      console.error('Gemini empty output:', JSON.stringify(data).slice(0, 500));
+      return res.status(502).json({ error: 'Gemini returned empty content', raw: data });
     }
 
-    return res.json(data);
+    // Return in format client expects: { candidates: [{ output: text }] }
+    return res.json({
+      candidates: [{ output: outputText }],
+      output: { text: outputText }
+    });
+
   } catch (e) {
-    console.error('Gemini proxy failed:', e);
+    console.error('Gemini proxy error:', e);
     return res.status(500).json({ error: e.message || 'Server error' });
   }
 });
@@ -88,5 +98,5 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`QC Suite server running on port ${PORT}`);
+  console.log(`QC Suite running on port ${PORT}`);
 });

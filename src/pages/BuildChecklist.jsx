@@ -727,7 +727,31 @@ export default function BuildChecklist() {
       }
 
       if (!testCases) {
-        throw new Error('Gemini failed: ' + errors.join(' | '));
+        console.warn('Gemini failed, trying fallback local', errors);
+        
+        // Fallback: tạo test cases từ prompt + fileContent (khi Gemini không xong)
+        const fallbackCases = [];
+        const promptText = aiPrompt.trim();
+        const promptKeywords = promptText.split(/[\s,.;:\-\/]+/).filter((x) => x.length > 3);
+        const baseFeature = promptKeywords.slice(0, 4).join(' ') || 'Feature';
+        const firstLine = fileContent.split('\n').find((l) => l.trim()) || '';
+        const maxGenerate = 4;
+
+        for (let i = 0; i < maxGenerate; i++) {
+          const scenario = promptKeywords[i] || promptKeywords[0] || 'scenario';
+          fallbackCases.push({
+            feature: `${baseFeature} - mục ${i + 1}`,
+            description: `Kiểm thử '${scenario}' theo yêu cầu: ${promptText.substring(0, 120)}`,
+            testToPerform: `Bước 1: Mở ứng dụng; Bước 2: Thực hiện ${scenario}; Bước 3: Verify kết quả; Bước 4: Ghi log nếu lỗi.`,
+            testStatus: 'Yes',
+            result: 'Not Run',
+            issue: '',
+            note: `Fallback local (Gemini error: ${errors.join(' | ').slice(0, 100)})`
+          });
+        }
+
+        testCases = fallbackCases;
+        provider = '⚠️ Local fallback (do Gemini fail)';
       }
 
       handleImport(testCases);
