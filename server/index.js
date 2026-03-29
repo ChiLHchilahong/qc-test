@@ -31,6 +31,35 @@ app.use('/api/testcases', testcasesRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/jira', jiraRouter);
 
+// AI route proxy Gemini to avoid CORS from client
+app.post('/api/ai/gemini', async (req, res) => {
+  try {
+    const { prompt, apiKey, max_output_tokens = 2000 } = req.body || {};
+    const key = apiKey || process.env.GEMINI_API_KEY;
+
+    if (!key || !prompt) {
+      return res.status(400).json({ error: 'Missing prompt or API key' });
+    }
+
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta2/models/text-bison-001:generate?key=${encodeURIComponent(key)}`;
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: { text: prompt }, max_output_tokens })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return res.status(response.status).json({ error: data?.error || data });
+    }
+
+    return res.json(data);
+  } catch (e) {
+    console.error('Gemini proxy failed:', e);
+    return res.status(500).json({ error: e.message || 'Server error' });
+  }
+});
+
 // Serve static files in production
 const distPath = path.join(__dirname, '..', 'dist');
 app.use(express.static(distPath));

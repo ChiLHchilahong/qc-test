@@ -472,8 +472,6 @@ export default function BuildChecklist() {
   const [aiPrompt, setAiPrompt] = useState('');
   const [fileContent, setFileContent] = useState('');
   const [aiGenLoading, setAiGenLoading] = useState(false);
-  const [aiApiKey, setAiApiKey] = useState('');
-  const [aiClaudeKey, setAiClaudeKey] = useState('');
   const [aiGeminiKey, setAiGeminiKey] = useState('');
   const [aiFileName, setAiFileName] = useState('');
   const [aiProvider, setAiProvider] = useState('');
@@ -662,20 +660,16 @@ export default function BuildChecklist() {
       }
 
       try {
-        const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta2/models/text-bison-001:generate?key=${aiGeminiKey}`;
-        const res = await fetch(geminiEndpoint, {
+        const res = await fetch('/api/ai/gemini', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: { text: prompt },
-            max_output_tokens: 2000
-          }),
+          body: JSON.stringify({ prompt, apiKey: aiGeminiKey, max_output_tokens: 2000 }),
           signal: AbortSignal.timeout(30000)
         });
 
         const data = await res.json();
         if (!res.ok) {
-          const msg = data?.error?.message || data?.error || res.status;
+          const msg = data?.error?.message || data?.error || JSON.stringify(data);
           throw new Error('Gemini: ' + msg);
         }
 
@@ -789,7 +783,7 @@ export default function BuildChecklist() {
       {/* AI Generate zone (inline) */}
       {showAISection && (
         <div className="mb-4 bg-white rounded-xl shadow p-4">
-          <h3 className="font-bold text-base mb-3" style={{ color: '#6366f1' }}>🤖 AI Generate Test Cases (GPT-4o + Claude + Gemini)</h3>
+          <h3 className="font-bold text-base mb-3" style={{ color: '#6366f1' }}>🤖 AI Generate Test Cases (Gemini)</h3>
 
           {/* Provider Status */}
           {aiProvider && (
