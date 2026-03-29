@@ -127,7 +127,7 @@ export default function VersionDetail() {
 
       {/* Header */}
       <div className="mb-2 flex items-center justify-between gap-3">
-        <h1 className="text-[44px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">{displayVersionName}</h1>
+        <h1 className="text-5xl font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">{displayVersionName}</h1>
         <button
           onClick={() => {
             setNameInput('');
@@ -138,7 +138,7 @@ export default function VersionDetail() {
           + New Build
         </button>
       </div>
-      <p className="mb-8 text-[33px] font-medium text-[#5f708a]">Select a build to open its checklist</p>
+      <p className="mb-8 text-2xl font-medium text-[#5f708a]">Select a build to open its checklist</p>
 
       {/* Grid */}
       {builds.length === 0 ? (

@@ -7,6 +7,14 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+const DATA_CHANGED_EVENT = 'qc:data-changed';
+
+const notifyDataChanged = () => {
+  const timestamp = String(Date.now());
+  localStorage.setItem('qc:last-data-change', timestamp);
+  window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
+};
+
 // ─── TEST CASE ─────────────────────────
 export const getTestCases = async (buildId) => {
   const res = await api.get('/api/testcases', { params: { buildId } });
@@ -15,16 +23,19 @@ export const getTestCases = async (buildId) => {
 
 export const createTestCase = async (buildId, data) => {
   const res = await api.post('/api/testcases', { buildId, ...data });
+  notifyDataChanged();
   return res.data;
 };
 
 export const updateTestCase = async (id, data) => {
   const res = await api.put(`/api/testcases/${id}`, data);
+  notifyDataChanged();
   return res.data;
 };
 
 export const deleteTestCase = async (id) => {
   await api.delete(`/api/testcases/${id}`);
+  notifyDataChanged();
 };
 
 export const importTestCases = async (buildId, rows) => {
@@ -53,6 +64,7 @@ export const importTestCases = async (buildId, rows) => {
   });
 
   const res = await api.post('/api/testcases/import', { buildId, testCases });
+  notifyDataChanged();
   return res.data;
 };
 
@@ -64,16 +76,19 @@ export const getProjects = async () => {
 
 export const createProject = async (data) => {
   const res = await api.post('/api/projects', { name: data.name });
+  notifyDataChanged();
   return res.data;
 };
 
 export const updateProject = async (id, data) => {
   const res = await api.put(`/api/projects/${id}`, data);
+  notifyDataChanged();
   return res.data;
 };
 
 export const deleteProject = async (id) => {
   await api.delete(`/api/projects/${id}`);
+  notifyDataChanged();
 };
 
 // ─── VERSION ─────────────────────────
@@ -88,16 +103,19 @@ export const getVersions = async (projectId) => {
 
 export const createVersion = async (projectId, data) => {
   const res = await api.post('/api/versions', { projectId, name: data.name });
+  notifyDataChanged();
   return res.data;
 };
 
 export const updateVersion = async (id, data) => {
   const res = await api.put(`/api/versions/${id}`, data);
+  notifyDataChanged();
   return res.data;
 };
 
 export const deleteVersion = async (id) => {
   await api.delete(`/api/versions/${id}`);
+  notifyDataChanged();
 };
 
 // ─── BUILD ─────────────────────────
@@ -116,20 +134,24 @@ export const getBuilds = async (versionId) => {
 
 export const createBuild = async (versionId, data) => {
   const res = await api.post('/api/builds', { versionId, name: data.name });
+  notifyDataChanged();
   return res.data;
 };
 
 export const updateBuild = async (id, data) => {
   const res = await api.put(`/api/builds/${id}`, data);
+  notifyDataChanged();
   return res.data;
 };
 
 export const deleteBuild = async (id) => {
   await api.delete(`/api/builds/${id}`);
+  notifyDataChanged();
 };
 
 export const copyBuild = async (id) => {
   const res = await api.post(`/api/builds/${id}/copy`, { name: '' });
+  notifyDataChanged();
   return res.data;
 };
 
@@ -156,7 +178,10 @@ export const sendBugsToJira = async () => {
 
 // ─── DASHBOARD ─────────────────────────
 export const getDashboard = async () => {
-  const res = await api.get('/api/reports/dashboard');
+  const res = await api.get('/api/reports/dashboard', {
+    params: { _t: Date.now() },
+    headers: { 'Cache-Control': 'no-cache' },
+  });
   const payload = res.data || {};
 
   const projects = (Array.isArray(payload.projects) ? payload.projects : []).map((p) => ({

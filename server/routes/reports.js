@@ -65,7 +65,6 @@ router.get('/dashboard', (req, res) => {
       JOIN projects p ON p.id = v.project_id
       LEFT JOIN test_cases tc ON tc.build_id = b.id
       GROUP BY b.id
-      HAVING total > 0
       ORDER BY b.created_at DESC
     `).all();
 
@@ -85,12 +84,14 @@ router.get('/dashboard', (req, res) => {
         return priority.indexOf(a.key) - priority.indexOf(b.key);
       });
 
-      const dominantResult = resultCounts[0]?.key || 'Not Run';
       let status = 'PENDING';
-      if (dominantResult === 'Failed') status = 'HAS BUGS';
-      if (dominantResult === 'Warning') status = 'HAS BUGS';
-      if (dominantResult === 'Passed') status = 'PASSED';
-      if (dominantResult === 'In Progress') status = 'IN PROGRESS';
+      if ((build.total || 0) > 0) {
+        const dominantResult = resultCounts[0]?.key || 'Not Run';
+        if (dominantResult === 'Failed') status = 'HAS BUGS';
+        if (dominantResult === 'Warning') status = 'HAS BUGS';
+        if (dominantResult === 'Passed') status = 'PASSED';
+        if (dominantResult === 'In Progress') status = 'IN PROGRESS';
+      }
 
       const executed = build.total > 0 ? ((build.total - build.not_run) / build.total) * 100 : 0;
 

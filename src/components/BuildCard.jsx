@@ -20,12 +20,12 @@ const BuildCard = ({ build, onCopy, onRename, onDelete }) => {
   return (
     <div className="rounded-[16px] border border-[#d8e0ec] bg-[#f8fafc] p-6 transition-shadow hover:shadow-sm">
       {/* Icon + Pass Rate */}
-      <div className="mb-5 flex items-start justify-between gap-3">
+      <div className="mb-6 flex items-start justify-between gap-3">
         <span className="text-xl opacity-70" role="img" aria-label="build">
           🔧
         </span>
         <div className="min-w-[88px] text-right">
-          <span className={`block text-[44px] font-extrabold leading-none ${getPassRateColor(passRate)}`}>
+          <span className={`block text-[46px] font-extrabold leading-none ${getPassRateColor(passRate)}`}>
             {passRate}%
           </span>
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#9aa8be]">Pass Rate</p>
@@ -33,9 +33,13 @@ const BuildCard = ({ build, onCopy, onRename, onDelete }) => {
       </div>
 
       {/* Build info */}
-      <h3 className="mb-1 text-[38px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">{displayBuildName}</h3>
-      <p className="mb-1 text-[32px] font-semibold leading-none text-[#0d1d3b]">{build.totalCases}</p>
-      <p className="text-[34px] font-medium leading-none text-[#556987]">test cases</p>
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#9aa8be]">Build</p>
+      <h3 className="mt-1 text-6xl font-extrabold leading-none tracking-[-0.02em] text-[#0d1d3b]">{displayBuildName}</h3>
+
+      <div className="mt-4 flex items-baseline gap-2">
+        <p className="text-[34px] font-bold leading-none text-[#0d1d3b]">{build.totalCases}</p>
+        <p className="text-xl font-semibold leading-none text-[#556987]">test cases</p>
+      </div>
       {statusText && (
         <p className="mt-2 text-xs text-[#8b9ab0]">{statusText}</p>
       )}

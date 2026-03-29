@@ -8,13 +8,50 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState(null);
+  const [checklistTheme, setChecklistTheme] = useState('neon');
+
+  const fetchDashboard = (withLoading = false) => {
+    if (withLoading) setLoading(true);
+    if (!withLoading) setSyncing(true);
+
+    return getDashboard()
+      .then((res) => {
+        setData(res);
+        setError(null);
+      })
+      .catch((err) => setError(err.message || 'Failed to load dashboard'))
+      .finally(() => {
+        if (withLoading) setLoading(false);
+        if (!withLoading) setSyncing(false);
+      });
+  };
 
   useEffect(() => {
-    getDashboard()
-      .then((res) => setData(res))
-      .catch((err) => setError(err.message || 'Failed to load dashboard'))
-      .finally(() => setLoading(false));
+    fetchDashboard(true);
+
+    const onDataChanged = () => fetchDashboard(false);
+    const onStorage = (e) => {
+      if (e.key === 'qc:last-data-change') fetchDashboard(false);
+    };
+
+    window.addEventListener('qc:data-changed', onDataChanged);
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      window.removeEventListener('qc:data-changed', onDataChanged);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('qc:checklist-theme', checklistTheme);
+  }, [checklistTheme]);
+
+  useEffect(() => {
+    setChecklistTheme('neon');
+    localStorage.setItem('qc:checklist-theme', 'neon');
   }, []);
 
   if (loading) {
@@ -40,9 +77,17 @@ export default function Dashboard() {
     <div className="mx-auto max-w-[1600px] space-y-12">
       {/* Project Health Analytics */}
       <section>
-        <h1 className="text-[42px] font-extrabold leading-tight tracking-[-0.01em] text-[#0d1d3b]">
-          Project Health Analytics
-        </h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-[42px] font-extrabold leading-tight tracking-[-0.01em] text-[#0d1d3b]">
+            Project Health Analytics
+          </h1>
+          {syncing && (
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#cfd8e6] bg-white/80 px-3 py-1 text-xs font-semibold text-[#5f708a]">
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#aebbd0] border-t-[#4f6ef7]" />
+              Syncing...
+            </div>
+          )}
+        </div>
         <p className="mt-2 text-lg text-[#63748e]">Detailed Pass/Fail metrics per version</p>
 
         <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-3 md:grid-cols-2">
@@ -58,9 +103,29 @@ export default function Dashboard() {
 
       {/* Active Checklists */}
       <section>
-        <h2 className="text-[42px] font-extrabold leading-tight tracking-[-0.01em] text-[#0d1d3b]">
-          Active Checklists
-        </h2>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-[42px] font-extrabold leading-tight tracking-[-0.01em] text-[#0d1d3b]">
+            Active Checklists
+          </h2>
+          <div className="inline-flex items-center gap-1 rounded-full border border-[#cfd8e6] bg-white/80 p-1">
+            <button
+              onClick={() => setChecklistTheme('neon')}
+              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                checklistTheme === 'neon' ? 'bg-[#6d1ff2] text-white' : 'text-[#5f708a]'
+              }`}
+            >
+              Neon
+            </button>
+            <button
+              onClick={() => setChecklistTheme('enterprise')}
+              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                checklistTheme === 'enterprise' ? 'bg-[#334155] text-white' : 'text-[#5f708a]'
+              }`}
+            >
+              Enterprise
+            </button>
+          </div>
+        </div>
 
         <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
           {activeChecklists.map((checklist) => (
@@ -72,7 +137,7 @@ export default function Dashboard() {
                 navigate(`/projects/${checklist.projectId}/versions/${checklist.versionId}/builds/${checklist.buildId}`);
               }}
             >
-              <ActiveChecklist checklist={checklist} />
+              <ActiveChecklist checklist={checklist} themeVariant={checklistTheme} />
             </div>
           ))}
         </div>

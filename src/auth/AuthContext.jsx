@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 
 const ACCOUNTS_STORAGE_KEY = 'qc_auth_accounts';
+const SESSION_STORAGE_KEY = 'qc_auth_session';
+const SESSION_TTL_MS = 30 * 60 * 1000;
 const AuthContext = createContext(null);
 
 function readStoredAccounts() {
@@ -14,9 +16,28 @@ function readStoredAccounts() {
   }
 }
 
+function readStoredSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (!parsed.username || !parsed.loginAt) return null;
+
+    const age = Date.now() - Number(parsed.loginAt);
+    if (Number.isNaN(age) || age > SESSION_TTL_MS) {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      return null;
+    }
+
+    return parsed;
+  } catch {
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+    return null;
+  }
+}
+
 export function AuthProvider({ children }) {
-  // Session user is kept in memory only, so reload requires login again.
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => readStoredSession());
   const [accounts, setAccounts] = useState(() => readStoredAccounts());
 
   const persistAccounts = (nextAccounts) => {
@@ -68,11 +89,13 @@ export function AuthProvider({ children }) {
       loginAt: Date.now(),
     };
 
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextUser));
     setUser(nextUser);
     return { success: true };
   };
 
   const logout = () => {
+    localStorage.removeItem(SESSION_STORAGE_KEY);
     setUser(null);
   };
 
