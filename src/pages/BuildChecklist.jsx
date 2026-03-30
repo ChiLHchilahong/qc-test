@@ -22,6 +22,8 @@ const TEST_STATUS_CFG = {
   No: { bg: '#ffe4e6', color: '#be123c' },
 };
 const TEST_STATUS_OPTIONS = Object.keys(TEST_STATUS_CFG);
+const LS_GEMINI_API_KEY = 'qc:gemini-api-key';
+const LS_AI_PROMPT = 'qc:ai-prompt';
 
 const normalizeResult = (value) => {
   if (!value || typeof value !== 'string') return 'Not Run';
@@ -36,6 +38,109 @@ const normalizeResult = (value) => {
   const key = Object.keys(RESULT_CFG).find((x) => x.toLowerCase() === raw);
   return key || 'Not Run';
 };
+
+function extractJSONArrayFromText(rawText) {
+  const text = String(rawText || '').trim();
+  if (!text) return null;
+
+  const tryParse = (input) => {
+    try { return JSON.parse(input); }
+    catch { return null; }
+  };
+
+  const direct = tryParse(text);
+  if (Array.isArray(direct)) return direct;
+  if (direct && Array.isArray(direct.testCases)) return direct.testCases;
+  if (direct && Array.isArray(direct.data)) return direct.data;
+
+  const withoutFenceStart = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+  const unfenced = tryParse(withoutFenceStart);
+  if (Array.isArray(unfenced)) return unfenced;
+  if (unfenced && Array.isArray(unfenced.testCases)) return unfenced.testCases;
+  if (unfenced && Array.isArray(unfenced.data)) return unfenced.data;
+
+  const firstBracket = withoutFenceStart.indexOf('[');
+  if (firstBracket >= 0) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = firstBracket; i < withoutFenceStart.length; i++) {
+      const ch = withoutFenceStart[i];
+
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (ch === '[') depth++;
+      if (ch === ']') {
+        depth--;
+        if (depth === 0) {
+          const candidate = withoutFenceStart.slice(firstBracket, i + 1);
+          const parsed = tryParse(candidate);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      }
+    }
+
+    // Nếu mảng bị cắt giữa chừng, vẫn cố vớt các object hoàn chỉnh đã trả về.
+    const salvage = [];
+    let objectStart = -1;
+    let objectDepth = 0;
+    let arrayStarted = false;
+    inString = false;
+    escaped = false;
+
+    for (let i = firstBracket; i < withoutFenceStart.length; i++) {
+      const ch = withoutFenceStart[i];
+
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (ch === '[') {
+        arrayStarted = true;
+        continue;
+      }
+      if (!arrayStarted) continue;
+
+      if (ch === '{') {
+        if (objectDepth === 0) objectStart = i;
+        objectDepth++;
+      }
+
+      if (ch === '}') {
+        objectDepth--;
+        if (objectDepth === 0 && objectStart >= 0) {
+          const candidate = withoutFenceStart.slice(objectStart, i + 1);
+          const parsed = tryParse(candidate);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) salvage.push(parsed);
+          objectStart = -1;
+        }
+      }
+    }
+
+    if (salvage.length > 0) return salvage;
+  }
+
+  return null;
+}
 
 const getResultColor = (result) => {
   const normalized = normalizeResult(result);
@@ -518,10 +623,17 @@ export default function BuildChecklist() {
   const [showJiraModal, setShowJiraModal] = useState(false);
   const [jiraBug, setJiraBug] = useState({ summary: '', description: '', priority: 'Medium', type: 'Bug' });
   const [showAISection, setShowAISection] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiPrompt, setAiPrompt] = useState(() => {
+    try { return localStorage.getItem(LS_AI_PROMPT) || ''; }
+    catch { return ''; }
+  });
   const [fileContent, setFileContent] = useState('');
   const [aiGenLoading, setAiGenLoading] = useState(false);
-  const [aiGeminiKey, setAiGeminiKey] = useState('');
+  const [aiGeminiKey, setAiGeminiKey] = useState(() => {
+    try { return localStorage.getItem(LS_GEMINI_API_KEY) || ''; }
+    catch { return ''; }
+  });
+  const [showAiGeminiKey, setShowAiGeminiKey] = useState(false);
   const [aiFileName, setAiFileName] = useState('');
   const [aiProvider, setAiProvider] = useState('');
   const aiInputRef = useRef();
@@ -540,6 +652,24 @@ export default function BuildChecklist() {
   }, [buildId, projectId, versionId]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  useEffect(() => {
+    try {
+      if (aiGeminiKey.trim()) localStorage.setItem(LS_GEMINI_API_KEY, aiGeminiKey.trim());
+      else localStorage.removeItem(LS_GEMINI_API_KEY);
+    } catch {
+      // Ignore localStorage failures and keep in-memory state.
+    }
+  }, [aiGeminiKey]);
+
+  useEffect(() => {
+    try {
+      if (aiPrompt.trim()) localStorage.setItem(LS_AI_PROMPT, aiPrompt);
+      else localStorage.removeItem(LS_AI_PROMPT);
+    } catch {
+      // Ignore localStorage failures and keep in-memory state.
+    }
+  }, [aiPrompt]);
 
   const handleUpdateResult = async (tc, newResult) => {
     const resultNormalized = normalizeResult(newResult);
@@ -648,27 +778,34 @@ export default function BuildChecklist() {
   async function handleAIFileUpload(file) {
     try {
       setAiGenLoading(true);
+      const fileNameLower = (file.name || '').toLowerCase();
       // Kiểm tra file size (max 20MB)
       if (file.size > 20 * 1024 * 1024) {
         alert('❌ File quá lớn! Max 20MB. Hiện tại: ' + (file.size / 1024 / 1024).toFixed(1) + 'MB');
         return;
       }
       let content = '';
-      if (file.name.endsWith('.pdf')) {
+      if (fileNameLower.endsWith('.pdf')) {
         content = await parsePDF(file);
-      } else if (file.name.endsWith('.docx')) {
+      } else if (fileNameLower.endsWith('.docx')) {
         if (!window.mammoth) {
-          const script = document.createElement('script');
-          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.min.js';
           await new Promise((resolve, reject) => {
-            script.onload = resolve;
-            script.onerror = reject;
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js';
+            script.onload = () => {
+              if (window.mammoth) resolve();
+              else reject(new Error('Mammoth load xong nhưng không tìm thấy window.mammoth'));
+            };
+            script.onerror = () => reject(new Error('Không tải được thư viện Mammoth từ CDN. Kiểm tra kết nối mạng.'));
             document.head.appendChild(script);
           });
         }
         content = await parseDOCX(file);
+      } else if (fileNameLower.endsWith('.doc')) {
+        alert('⚠️ File .doc (Office cũ) không được hỗ trợ.\nVui lòng lưu lại dưới dạng .docx rồi thử lại.');
+        return;
       } else {
-        alert('Chỉ hỗ trợ file PDF hoặc DOCX');
+        alert('⚠️ Chỉ hỗ trợ file PDF (.pdf) hoặc Word (.docx)');
         return;
       }
       setFileContent(content.substring(0, 3000));
@@ -676,25 +813,31 @@ export default function BuildChecklist() {
       alert('✅ File "' + file.name + '" đã load! Auto-generate ngay nếu prompt đã nhập.');
       // Auto-generate nếu prompt đã có
       if (aiPrompt.trim()) {
-        setTimeout(() => generateTestCases(), 300);
+        const capturedContent = content.substring(0, 3000);
+        setTimeout(() => generateTestCases(capturedContent), 300);
       }
     } catch (e) {
-      alert('Lỗi: ' + e.message);
+      const msg = (e instanceof Error ? e.message : String(e)) || 'Lỗi không xác định';
+      alert('❌ ' + msg);
     } finally {
       setAiGenLoading(false);
     }
   }
 
-  async function generateTestCases() {
-    if (!fileContent.trim()) { alert('Vui lòng import file trước!'); return; }
-    if (!aiPrompt.trim()) { alert('Vui lòng nhập yêu cầu/prompt!'); return; }
+  async function generateTestCases(contentOverride) {
+    const sourceContent = (typeof contentOverride === 'string' ? contentOverride : fileContent).trim();
+    const promptText = aiPrompt.trim();
+
+    if (!sourceContent) { alert('Vui lòng import file trước!'); return; }
+    if (!promptText) { alert('Vui lòng nhập yêu cầu/prompt!'); return; }
     if (!aiGeminiKey.trim()) { alert('Vui lòng nhập Gemini API key!'); return; }
 
     setAiGenLoading(true);
     try {
       // Prompt rõ ràng, tách system khỏi content tài liệu
       const systemInstruction = `Bạn là QA engineer chuyên nghiệp. Nhiệm vụ: phân tích tài liệu và tạo test cases chi tiết.
-QUAN TRỌNG: Chỉ trả về JSON array thuần túy, KHÔNG có markdown, KHÔNG có text giải thích.
+    QUAN TRỌNG: Chỉ trả về JSON array thuần túy, KHÔNG có markdown, KHÔNG có text giải thích.
+    Giới hạn tối đa 10 test cases, ưu tiên những case quan trọng nhất. Nội dung ngắn gọn, không lan man.
 Format mỗi test case:
 {
   "feature": "Tên feature/module (ngắn gọn)",
@@ -707,10 +850,10 @@ Format mỗi test case:
 
       const userMessage = `Tài liệu cần phân tích:
 ---
-${fileContent}
+    ${sourceContent}
 ---
 
-Yêu cầu từ người dùng: ${aiPrompt}
+    Yêu cầu từ người dùng: ${promptText}
 
 Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
 
@@ -733,29 +876,14 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
         throw new Error('Gemini lỗi: ' + msg);
       }
 
-      // Server trả về { output: "..." }
-      const text = (data?.output || '').trim();
+      // Server có thể trả về nhiều format: output string, output.text hoặc candidates[0].output
+      const rawOutput = typeof data?.output === 'string'
+        ? data.output
+        : (data?.output?.text || data?.candidates?.[0]?.output || data?.candidates?.[0]?.content?.parts?.[0]?.text || '');
+      const text = String(rawOutput || '').trim();
       if (!text) throw new Error('Gemini không trả về nội dung. Thử lại hoặc kiểm tra API key.');
 
-      // Parse JSON từ response
-      let parsed = null;
-      const tryParse = (s) => { try { return JSON.parse(s); } catch { return null; } };
-
-      // Thử parse trực tiếp
-      parsed = tryParse(text);
-
-      // Nếu có markdown code block
-      if (!parsed) {
-        const mdMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-        if (mdMatch) parsed = tryParse(mdMatch[1].trim());
-      }
-
-      // Tìm JSON array trong text
-      if (!parsed) {
-        const arrMatch = text.match(/\[[\s\S]*\]/);
-        if (arrMatch) parsed = tryParse(arrMatch[0]);
-      }
-
+      const parsed = extractJSONArrayFromText(text);
       if (!parsed || !Array.isArray(parsed)) {
         throw new Error('Không parse được JSON. Response: ' + text.slice(0, 300));
       }
@@ -764,10 +892,10 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
       const normalized = parsed.map((tc) => ({
         feature:       tc.feature || tc.Feature || tc.module || '',
         description:   tc.description || tc.Description || tc.title || tc.name || '',
-        testToPerform: tc.testToPerform || tc.steps || tc.test_to_perform || tc['Test Steps'] || '',
+        testToPerform: tc.testToPerform || tc.steps || tc.action_steps || tc.test_to_perform || tc['Test Steps'] || '',
         testStatus:    'Yes',
         result:        'Not Run',
-        note:          tc.note || tc.notes || tc.expected || '',
+        note:          tc.note || tc.notes || tc.expected || tc.expected_result || '',
       })).filter((tc) => tc.description.trim());
 
       if (!normalized.length) throw new Error('Không có test case hợp lệ nào được tạo ra.');
@@ -779,49 +907,9 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
       alert('✅ Generate thành công!\n' + normalized.length + ' test cases đã import.');
       setTimeout(() => setAiProvider(''), 3000);
     } catch (e) {
-      // Fallback local: khi Gemini fail, tạo test case từ file content + prompt requirement
-      console.warn('Gemini failed, using local fallback:', e.message);
-      
-      try {
-        const fallbackCases = [];
-        const promptText = aiPrompt.trim();
-        const fileLines = fileContent.split('\n').filter((l) => l.trim());
-        
-        // Extract keywords từ prompt để hiểu intent
-        const promptKeywords = promptText.split(/[\s,.;:\-\/]+/).filter((x) => x.length > 2).slice(0, 5);
-        const mainFeature = promptKeywords[0] || 'Feature';
-        
-        // Tạo max 5 test case từ file content
-        const maxCases = Math.min(5, Math.max(2, Math.floor(fileLines.length / 3)));
-        
-        for (let i = 0; i < maxCases; i++) {
-          const lineIndex = Math.min(i * 3, fileLines.length - 1);
-          const sourceContent = fileLines[lineIndex] || '';
-          
-          fallbackCases.push({
-            feature: `${mainFeature} - Test ${i + 1}`,
-            description: `Kiểm thử theo yêu cầu: ${promptText.substring(0, 100)}... Dựa trên: "${sourceContent.substring(0, 80)}"`,
-            testToPerform: `1) Chuẩn bị: ${sourceContent.substring(0, 60)}. 2) Thực hiện theo yêu cầu: ${promptKeywords.slice(0, 2).join(' ')}. 3) Verify kết quả.`,
-            testStatus: 'Yes',
-            result: 'Not Run',
-            issue: '',
-            note: `Local fallback (Gemini: ${e.message.slice(0, 80)})`,
-          });
-        }
-        
-        if (fallbackCases.length > 0) {
-          handleImport(fallbackCases);
-          setFileContent('');
-          setAiFileName('');
-          setAiProvider('⚠️ Local (từ file + yêu cầu)');
-          alert('⚠️ Gemini API fail, đã tạo test case từ file content.\n' + fallbackCases.length + ' test cases đã import.');
-          setTimeout(() => setAiProvider(''), 3000);
-        } else {
-          throw new Error('Fallback failed: không đủ dữ liệu từ file');
-        }
-      } catch (fallbackErr) {
-        alert('❌ Lỗi: ' + e.message + '\n\nFallback local cũng fail: ' + fallbackErr.message);
-      }
+      const errMsg = (e instanceof Error ? e.message : String(e)) || 'Lỗi không xác định';
+      console.error('Gemini failed:', errMsg);
+      alert('❌ Gemini API lỗi:\n' + errMsg + '\n\nKiểm tra lại:\n• API key có đúng không?\n• Quota còn không?\n• Kết nối mạng ổn không?');
     } finally {
       setAiGenLoading(false);
     }
@@ -937,16 +1025,49 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
 
             <div className="mb-2">
               <label style={{ fontSize: 12, color: '#475569', display: 'block', marginBottom: 4 }}>Gemini API Key</label>
-              <input
-                type="password"
-                value={aiGeminiKey}
-                onChange={(e) => setAiGeminiKey(e.target.value)}
-                placeholder="AIza..."
-                className="w-full border border-green-300 rounded px-2 py-1 text-xs bg-white"
-              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type={showAiGeminiKey ? 'text' : 'password'}
+                  value={aiGeminiKey}
+                  onChange={(e) => setAiGeminiKey(e.target.value)}
+                  placeholder="AIza..."
+                  className="w-full border border-green-300 rounded px-2 py-1 text-xs bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAiGeminiKey((v) => !v)}
+                  style={{
+                    padding: '0 10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    background: '#fff',
+                    color: '#475569',
+                    fontSize: 11,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}>
+                  {showAiGeminiKey ? 'Ẩn' : 'Hiện'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAiGeminiKey('')}
+                  disabled={!aiGeminiKey}
+                  style={{
+                    padding: '0 10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    background: aiGeminiKey ? '#fff' : '#f8fafc',
+                    color: aiGeminiKey ? '#475569' : '#94a3b8',
+                    fontSize: 11,
+                    cursor: aiGeminiKey ? 'pointer' : 'not-allowed',
+                  }}>
+                  Xóa
+                </button>
+              </div>
             </div>
 
             <div style={{ fontSize: 10, color: '#64748b', marginTop: 8 }}>
+              Key sẽ được lưu cục bộ trên trình duyệt này, không cần nhập lại mỗi lần.<br />
               📌 Lấy key tại: <a href="https://ai.google.dev/" target="_blank" rel="noreferrer" style={{ color: '#16a34a', fontWeight: 'bold' }}>Gemini (Free)</a>
             </div>
           </div>
@@ -979,6 +1100,9 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
               className="w-full border border-gray-300 rounded-lg px-3 py-2"
               style={{ fontSize: 12, resize: 'vertical' }}
             />
+            <div style={{ fontSize: 10, color: '#64748b', marginTop: 6 }}>
+              Prompt được lưu cục bộ trên trình duyệt này, vào lại tab vẫn giữ nguyên.
+            </div>
           </div>
 
           {/* Generate Button */}

@@ -42,46 +42,87 @@ app.post('/api/ai/gemini', async (req, res) => {
       return res.status(400).json({ error: 'Missing prompt or API key' });
     }
 
-    // Dùng Gemini 2.0 Flash (model mới nhất, miễn phí)
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`;
+    // Thử lần lượt các model còn được docs hiện tại hỗ trợ cho generateContent.
+    const MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'];
+    const MAX_RETRY_PER_MODEL = 2;
+    let lastRetryableError = null;
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          maxOutputTokens: max_output_tokens,
-          temperature: 0.3,
+    for (const model of MODELS) {
+      for (let attempt = 1; attempt <= MAX_RETRY_PER_MODEL; attempt++) {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              maxOutputTokens: max_output_tokens,
+              temperature: 0.3,
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: 'ARRAY',
+                items: {
+                  type: 'OBJECT',
+                  properties: {
+                    feature: { type: 'STRING' },
+                    description: { type: 'STRING' },
+                    testToPerform: { type: 'STRING' },
+                    testStatus: { type: 'STRING' },
+                    result: { type: 'STRING' },
+                    note: { type: 'STRING' },
+                  },
+                  propertyOrdering: ['feature', 'description', 'testToPerform', 'testStatus', 'result', 'note']
+                }
+              }
+            }
+          })
+        });
+
+        const text = await response.text();
+
+        // 503 thường là tạm thời: retry model hiện tại với backoff ngắn.
+        if (response.status === 503 && attempt < MAX_RETRY_PER_MODEL) {
+          console.warn(`${model} overloaded (503), retry ${attempt}/${MAX_RETRY_PER_MODEL}...`);
+          await sleep(800 * attempt);
+          continue;
         }
-      })
-    });
 
-    const text = await response.text();
+        // Model không tồn tại/quota hết/quá tải kéo dài → thử model tiếp theo.
+        if (response.status === 404 || response.status === 429 || response.status === 503) {
+          console.warn(`${model} unavailable (${response.status}), trying next model...`);
+          try { lastRetryableError = JSON.parse(text); } catch { lastRetryableError = { message: text }; }
+          break;
+        }
 
-    if (!response.ok) {
-      let parsedError;
-      try { parsedError = JSON.parse(text); }
-      catch { parsedError = { message: text || `HTTP ${response.status}` }; }
-      console.error('Gemini error:', parsedError);
-      return res.status(response.status).json({ error: parsedError });
+        if (!response.ok) {
+          let parsedError;
+          try { parsedError = JSON.parse(text); }
+          catch { parsedError = { message: text || `HTTP ${response.status}` }; }
+          console.error(`Gemini ${model} error:`, parsedError);
+          return res.status(response.status).json({ error: parsedError });
+        }
+
+        let data;
+        try { data = JSON.parse(text); }
+        catch { return res.status(502).json({ error: 'Invalid JSON from Gemini', raw: text.slice(0, 500) }); }
+
+        const outputText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!outputText) {
+          console.error(`Gemini ${model} empty output:`, JSON.stringify(data).slice(0, 500));
+          return res.status(502).json({ error: 'Gemini returned empty content', raw: data });
+        }
+
+        console.log(`Gemini OK — model: ${model}`);
+        return res.json({ candidates: [{ output: outputText }], output: outputText, model });
+      }
     }
 
-    let data;
-    try { data = JSON.parse(text); }
-    catch { return res.status(502).json({ error: 'Invalid JSON from Gemini', raw: text.slice(0, 500) }); }
-
-    // Extract text from Gemini v1beta response format
-    const outputText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    if (!outputText) {
-      console.error('Gemini empty output:', JSON.stringify(data).slice(0, 500));
-      return res.status(502).json({ error: 'Gemini returned empty content', raw: data });
-    }
-
-    // Return in format client expects: { candidates: [{ output: text }] }
-    return res.json({
-      candidates: [{ output: outputText }],
-      output: { text: outputText }
+    // Tất cả models đều hết quota
+    return res.status(429).json({
+      error: `Không gọi được model Gemini nào trong danh sách fallback (${MODELS.join(', ')}). Có thể key đã hết quota hoặc project chưa được cấp quyền dùng model hiện tại.`,
+      detail: lastRetryableError,
     });
 
   } catch (e) {
