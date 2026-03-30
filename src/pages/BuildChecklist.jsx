@@ -633,6 +633,15 @@ export default function BuildChecklist() {
     try { return localStorage.getItem(LS_GEMINI_API_KEY) || ''; }
     catch { return ''; }
   });
+  const [showAiConfigEditor, setShowAiConfigEditor] = useState(() => {
+    try {
+      const key = (localStorage.getItem(LS_GEMINI_API_KEY) || '').trim();
+      const prompt = (localStorage.getItem(LS_AI_PROMPT) || '').trim();
+      return !(key && prompt);
+    } catch {
+      return true;
+    }
+  });
   const [showAiGeminiKey, setShowAiGeminiKey] = useState(false);
   const [aiFileName, setAiFileName] = useState('');
   const [aiProvider, setAiProvider] = useState('');
@@ -670,6 +679,12 @@ export default function BuildChecklist() {
       // Ignore localStorage failures and keep in-memory state.
     }
   }, [aiPrompt]);
+
+  useEffect(() => {
+    if (!aiGeminiKey.trim() || !aiPrompt.trim()) {
+      setShowAiConfigEditor(true);
+    }
+  }, [aiGeminiKey, aiPrompt]);
 
   const handleUpdateResult = async (tc, newResult) => {
     const resultNormalized = normalizeResult(newResult);
@@ -1019,8 +1034,32 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
             </div>
           )}
 
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px', marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: '#475569', fontWeight: 600 }}>
+              {aiGeminiKey.trim() && aiPrompt.trim()
+                ? 'Đã lưu Key + Prompt. Bạn có thể generate ngay.'
+                : 'Chưa đủ Key hoặc Prompt. Mở để nhập cấu hình.'}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAiConfigEditor((v) => !v)}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 6,
+                border: '1px solid #cbd5e1',
+                background: '#fff',
+                color: '#334155',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}>
+              {showAiConfigEditor ? 'Ẩn khu nhập' : 'Mở nhập lại Key/Prompt'}
+            </button>
+          </div>
+
           {/* API Keys Section */}
-          <div style={{ background: '#f0f9ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+          {showAiConfigEditor && <div style={{ background: '#f0f9ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 12, marginBottom: 12 }}>
             <div style={{ fontSize: 11, color: '#0284c7', fontWeight: 600, marginBottom: 8 }}>📌 Gemini API Key (bắt buộc, 1 key duy nhất)</div>
 
             <div className="mb-2">
@@ -1070,7 +1109,7 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
               Key sẽ được lưu cục bộ trên trình duyệt này, không cần nhập lại mỗi lần.<br />
               📌 Lấy key tại: <a href="https://ai.google.dev/" target="_blank" rel="noreferrer" style={{ color: '#16a34a', fontWeight: 'bold' }}>Gemini (Free)</a>
             </div>
-          </div>
+          </div>}
 
           {/* File Upload */}
           <div className="mb-3">
@@ -1090,7 +1129,7 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
           </div>
 
           {/* Prompt Input */}
-          <div className="mb-3">
+          {showAiConfigEditor && <div className="mb-3">
             <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>Prompt *</label>
             <textarea
               value={aiPrompt}
@@ -1103,7 +1142,7 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
             <div style={{ fontSize: 10, color: '#64748b', marginTop: 6 }}>
               Prompt được lưu cục bộ trên trình duyệt này, vào lại tab vẫn giữ nguyên.
             </div>
-          </div>
+          </div>}
 
           {/* Generate Button */}
           <div className="flex gap-2">
