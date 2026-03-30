@@ -142,6 +142,82 @@ function extractJSONArrayFromText(rawText) {
   return null;
 }
 
+function extractTestCasesLoosely(rawText) {
+  const text = String(rawText || '').replace(/\r/g, '\n');
+  if (!text.trim()) return [];
+
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const items = [];
+  let current = null;
+  let lastKey = '';
+
+  const keyMap = {
+    feature: 'feature',
+    module: 'feature',
+    description: 'description',
+    title: 'description',
+    testtoperform: 'testToPerform',
+    test_to_perform: 'testToPerform',
+    steps: 'testToPerform',
+    action_steps: 'testToPerform',
+    note: 'note',
+    notes: 'note',
+    expected: 'note',
+    expected_result: 'note',
+  };
+
+  const parseKV = (line) => {
+    const m = line.match(/^"?([A-Za-z_][A-Za-z0-9_]*)"?\s*:\s*(.+?)\s*,?$/);
+    if (!m) return null;
+    const rawKey = (m[1] || '').toLowerCase();
+    const mapped = keyMap[rawKey];
+    if (!mapped) return null;
+    let value = (m[2] || '').trim();
+    value = value.replace(/^"/, '').replace(/"$/, '').replace(/\"/g, '"').trim();
+    return { key: mapped, value };
+  };
+
+  for (const line of lines) {
+    const kv = parseKV(line);
+    if (kv) {
+      if (kv.key === 'feature') {
+        if (current && (current.feature || current.description || current.testToPerform || current.note)) {
+          items.push(current);
+        }
+        current = { feature: '', description: '', testToPerform: '', note: '' };
+      }
+
+      if (!current) current = { feature: '', description: '', testToPerform: '', note: '' };
+      current[kv.key] = (current[kv.key] ? current[kv.key] + ' ' : '') + kv.value;
+      lastKey = kv.key;
+      continue;
+    }
+
+    // Dòng nối tiếp của field trước đó (AI thường xuống dòng giữa chừng)
+    if (current && lastKey) {
+      const cleaned = line.replace(/^[\[\]{},]+|[\[\]{},]+$/g, '').trim();
+      if (cleaned) current[lastKey] = (current[lastKey] ? current[lastKey] + ' ' : '') + cleaned;
+    }
+  }
+
+  if (current && (current.feature || current.description || current.testToPerform || current.note)) {
+    items.push(current);
+  }
+
+  return items.filter((x) => (x.description || x.feature || x.testToPerform).trim());
+}
+
+function normalizeGeneratedTestCases(parsedItems) {
+  return (Array.isArray(parsedItems) ? parsedItems : []).map((tc) => ({
+    feature:       tc.feature || tc.Feature || tc.module || tc.category || '',
+    description:   tc.description || tc.Description || tc.title || tc.name || tc.scenario || '',
+    testToPerform: tc.testToPerform || tc.steps || tc.action_steps || tc.test_to_perform || tc['Test Steps'] || tc.action || '',
+    testStatus:    'Yes',
+    result:        'Not Run',
+    note:          tc.note || tc.notes || tc.expected || tc.expected_result || '',
+  })).filter((tc) => tc.description.trim());
+}
+
 const getResultColor = (result) => {
   const normalized = normalizeResult(result);
   if (normalized === 'Passed') return 'bg-green-100 text-green-700 border-green-400';
@@ -874,44 +950,97 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
 
       const fullPrompt = systemInstruction + '\n\n' + userMessage;
 
-      const res = await fetch('/api/ai/gemini', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: fullPrompt, apiKey: aiGeminiKey, max_output_tokens: 4000 }),
-        signal: AbortSignal.timeout(60000),
-      });
+      const requestGeminiText = async (promptPayload, maxTokens) => {
+        const res = await fetch('/api/ai/gemini', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: promptPayload, apiKey: aiGeminiKey, max_output_tokens: maxTokens }),
+          signal: AbortSignal.timeout(60000),
+        });
 
-      const rawText = await res.text();
-      let data;
-      try { data = rawText ? JSON.parse(rawText) : null; }
-      catch { throw new Error('Server trả về response không hợp lệ: ' + rawText.slice(0, 300)); }
+        const rawText = await res.text();
+        let data;
+        try { data = rawText ? JSON.parse(rawText) : null; }
+        catch { throw new Error('Server trả về response không hợp lệ: ' + rawText.slice(0, 300)); }
 
-      if (!res.ok) {
-        const msg = typeof data?.error === 'string' ? data.error : (data?.error?.message || JSON.stringify(data?.error) || 'Lỗi không xác định');
-        throw new Error('Gemini lỗi: ' + msg);
+        if (!res.ok) {
+          const nestedErrorMessage = data?.error?.error?.message;
+          const errorAsString = typeof data?.error === 'string' ? data.error : '';
+          const errorMessage = data?.error?.message || nestedErrorMessage || '';
+          const errorObject = data?.error && typeof data.error === 'object' ? JSON.stringify(data.error) : '';
+          const detailMessage = typeof data?.detail === 'string' ? data.detail : (data?.detail?.message || '');
+          const rawFallback = (rawText || '').trim().slice(0, 300);
+          const msg = errorAsString || errorMessage || detailMessage || errorObject || rawFallback || `HTTP ${res.status}`;
+          throw new Error('Gemini lỗi: ' + msg);
+        }
+
+        const rawOutput = typeof data?.output === 'string'
+          ? data.output
+          : (data?.output?.text || data?.candidates?.[0]?.output || data?.candidates?.[0]?.content?.parts?.[0]?.text || '');
+        const text = String(rawOutput || '').trim();
+        if (!text) throw new Error('Gemini không trả về nội dung. Thử lại hoặc kiểm tra API key.');
+        return text;
+      };
+
+      const firstText = await requestGeminiText(fullPrompt, 2500);
+      let parsed = extractJSONArrayFromText(firstText);
+      if (!parsed || !Array.isArray(parsed) || parsed.length === 0) {
+        parsed = extractTestCasesLoosely(firstText);
       }
 
-      // Server có thể trả về nhiều format: output string, output.text hoặc candidates[0].output
-      const rawOutput = typeof data?.output === 'string'
-        ? data.output
-        : (data?.output?.text || data?.candidates?.[0]?.output || data?.candidates?.[0]?.content?.parts?.[0]?.text || '');
-      const text = String(rawOutput || '').trim();
-      if (!text) throw new Error('Gemini không trả về nội dung. Thử lại hoặc kiểm tra API key.');
-
-      const parsed = extractJSONArrayFromText(text);
+      // Nếu output dài bị cắt làm hỏng JSON, retry 1 lần với prompt ngắn gọn hơn.
       if (!parsed || !Array.isArray(parsed)) {
-        throw new Error('Không parse được JSON. Response: ' + text.slice(0, 300));
+        const compactRetryPrompt = [
+          'Trả về DUY NHẤT JSON array hợp lệ, không markdown, không text ngoài JSON.',
+          'Giới hạn tối đa 6 test cases.',
+          'Mỗi field ngắn gọn, không xuống dòng trong value.',
+          'Schema mỗi item: {"feature":"","description":"","testToPerform":"","testStatus":"Yes","result":"Not Run","note":""}.',
+          '',
+          'Tài liệu:',
+          sourceContent,
+          '',
+          'Yêu cầu:',
+          promptText,
+        ].join('\n');
+        const retryText = await requestGeminiText(compactRetryPrompt, 1200);
+        parsed = extractJSONArrayFromText(retryText);
+        if (!parsed || !Array.isArray(parsed) || parsed.length === 0) {
+          parsed = extractTestCasesLoosely(retryText);
+        }
       }
 
-      // Normalize các field
-      const normalized = parsed.map((tc) => ({
-        feature:       tc.feature || tc.Feature || tc.module || '',
-        description:   tc.description || tc.Description || tc.title || tc.name || '',
-        testToPerform: tc.testToPerform || tc.steps || tc.action_steps || tc.test_to_perform || tc['Test Steps'] || '',
-        testStatus:    'Yes',
-        result:        'Not Run',
-        note:          tc.note || tc.notes || tc.expected || tc.expected_result || '',
-      })).filter((tc) => tc.description.trim());
+      if (!parsed || !Array.isArray(parsed)) {
+        throw new Error('Không parse được JSON từ Gemini sau 2 lần thử.');
+      }
+
+      let normalized = normalizeGeneratedTestCases(parsed);
+
+      // Nếu AI trả quá ít case (thường do output bị rút gọn), gọi bổ sung 1 lượt.
+      if (normalized.length < 3) {
+        const minCountPrompt = [
+          'Trả về DUY NHẤT JSON array hợp lệ.',
+          'Tạo CHINH XAC 8 test cases KHAC NHAU (không trùng lặp).',
+          'Mỗi case ngắn gọn, tập trung action + expected result.',
+          'Schema: {"feature":"","description":"","testToPerform":"","testStatus":"Yes","result":"Not Run","note":""}.',
+          '',
+          'Nguồn tài liệu:',
+          sourceContent,
+          '',
+          'Yêu cầu:',
+          promptText,
+        ].join('\n');
+
+        const boostText = await requestGeminiText(minCountPrompt, 1500);
+        let boostParsed = extractJSONArrayFromText(boostText);
+        if (!boostParsed || !Array.isArray(boostParsed) || boostParsed.length === 0) {
+          boostParsed = extractTestCasesLoosely(boostText);
+        }
+
+        const boosted = normalizeGeneratedTestCases(boostParsed);
+        if (boosted.length > normalized.length) {
+          normalized = boosted;
+        }
+      }
 
       if (!normalized.length) throw new Error('Không có test case hợp lệ nào được tạo ra.');
 
