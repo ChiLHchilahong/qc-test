@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, register, hasAnyAccount } = useAuth();
+  const { login, register, hasAnyAccount, enterGuest } = useAuth();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -52,6 +52,13 @@ export default function Login() {
 
     setFailedLoginAttempts(0);
     navigate(from, { replace: true });
+  };
+
+  const handleGuestAccess = () => {
+    const result = enterGuest();
+    if (result?.success) {
+      navigate('/', { replace: true });
+    }
   };
 
   return (
@@ -135,6 +142,14 @@ export default function Login() {
             className="w-full rounded-lg bg-[#4f6ef7] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#3f5de7]"
           >
             {mode === 'register' ? 'Tạo tài khoản' : 'Đăng nhập'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleGuestAccess}
+            className="w-full rounded-lg border border-[#c8d3e3] bg-white px-4 py-2.5 text-sm font-bold text-[#2d3f5f] hover:bg-[#f6f8fc]"
+          >
+            Vào nhanh (không đăng nhập)
           </button>
         </form>
 

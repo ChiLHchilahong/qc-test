@@ -80,12 +80,25 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  const enterGuest = () => {
+    const guestUser = {
+      username: 'Guest',
+      loginAt: Date.now(),
+      isGuest: true,
+    };
+
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(guestUser));
+    setUser(guestUser);
+    return { success: true };
+  };
+
   const value = useMemo(
     () => ({
       user,
       isAuthenticated: Boolean(user),
       hasAnyAccount,
       login,
+      enterGuest,
       logout,
       register,
     }),
