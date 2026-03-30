@@ -111,12 +111,29 @@ async function parseFileToRows(file) {
   const XLSX = await loadXLSX();
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array' });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+  const expectedHeaders = [
+    'feature', 'test case description', 'descriptions', 'description',
+    'test to perform', '?test', 'test status', 'result', 'issue (jira)', 'issue', 'note',
+  ];
+
+  // Pick the sheet that looks most like a test-case table (avoid importing Summary sheet).
+  const bestSheetName = wb.SheetNames.reduce((bestName, sheetName, idx) => {
+    const ws = wb.Sheets[sheetName];
+    const preview = XLSX.utils.sheet_to_json(ws, { defval: '', range: 0, blankrows: false });
+    const headerSet = new Set(
+      preview.slice(0, 3).flatMap((row) => Object.keys(row || {}).map((k) => String(k).trim().toLowerCase()))
+    );
+    const score = expectedHeaders.reduce((acc, h) => acc + (headerSet.has(h) ? 1 : 0), 0);
+    const isBetter = !bestName || score > bestName.score || (score === bestName.score && idx > bestName.idx);
+    return isBetter ? { name: sheetName, score, idx } : bestName;
+  }, null)?.name || wb.SheetNames[0];
+
+  const ws = wb.Sheets[bestSheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: '', blankrows: false });
   return rows.map((r) => ({
-    feature:       r['Feature'] || r['feature'] || r['Module'] || '',
-    description:   r['Test Case Description'] || r['Descriptions'] || r['description'] || r['Title'] || '',
-    testToPerform: r['Test To Perform'] || r['testToPerform'] || r['Steps'] || '',
+    feature:       r['Feature'] || r['feature'] || r['FEATURE (A)'] || r['Module'] || '',
+    description:   r['Test Case Description'] || r['TEST CASE DESCRIPTION (B)'] || r['Descriptions'] || r['description'] || r['Title'] || '',
+    testToPerform: r['Test To Perform'] || r['TEST TO PERFORM (C)'] || r['testToPerform'] || r['Steps'] || '',
     testStatus:    r['?Test'] || r['Test Status'] || 'Yes',
     result:        r['Result'] || r['result'] || 'Not Run',
     issue:         r['Issue (Jira)'] || r['Issue'] || r['issue'] || '',
@@ -335,8 +352,8 @@ function ImportDropZone({ onParsed }) {
         onClick={() => ref.current.click()}
         style={{ border: '2px dashed ' + (dragging ? '#3b82f6' : '#cbd5e1'), borderRadius: 10, padding: '22px', textAlign: 'center', cursor: 'pointer', background: dragging ? '#eff6ff' : '#f8fafc' }}>
         <div style={{ fontSize: 28, marginBottom: 6 }}>📂</div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>Kéo thả file CSV vào đây</div>
-        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>hoặc click để chọn (.csv)</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>Kéo thả file Excel/CSV vào đây</div>
+        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>hoặc click để chọn (.xlsx, .xls, .csv)</div>
         <input ref={ref} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={(e) => { if (e.target.files[0]) { handle(e.target.files[0]); ref.current.value = ''; } }} />
       </div>
       {err && <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '6px 10px', borderRadius: 6, fontSize: 12, marginTop: 6 }}>{err}</div>}
@@ -879,7 +896,7 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
         <button 
           onClick={() => { setShowImport(v => !v); setShowAISection(false); }} 
           className={"px-4 py-2 rounded-lg font-medium text-sm " + (showImport ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-purple-100 hover:bg-purple-200 text-purple-700")}>
-          📂 Import CSV
+          📂 Import Excel/CSV
         </button>
         <button 
           onClick={() => { setShowAISection(true); setShowImport(false); }} 
@@ -889,6 +906,7 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
         <button onClick={handleOpenJira} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium text-sm">Send to Jira</button>
         <button onClick={() => setShowReport(true)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium text-sm">📊 Report</button>
         <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm">+ Add Test Case</button>
+        <button onClick={() => exportToExcel(testCases, meta)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium text-sm">📊 Export Excel</button>
         <button onClick={() => exportCSV(testCases)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm">📁 Export CSV</button>
         <button onClick={handleDeleteAll} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium text-sm">🗑 Delete All</button>
       </div>
