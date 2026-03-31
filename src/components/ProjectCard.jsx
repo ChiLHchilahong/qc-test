@@ -17,6 +17,21 @@ const ProjectCard = ({ project, onRename, onDelete }) => {
           </div>
         </div>
       </div>
+
+      <div className="mt-4 flex items-center gap-2 border-t border-gray-100 pt-3">
+        <button
+          onClick={(e) => { e.stopPropagation(); onRename?.(); }}
+          className="px-3 py-1 text-sm border border-gray-300 rounded-md text-gray-600 hover:bg-gray-50 transition-colors"
+        >
+          Rename
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
+          className="px-3 py-1 text-sm text-red-500 hover:text-red-700 transition-colors"
+        >
+          Delete
+        </button>
+      </div>
     </div>
   );
 };

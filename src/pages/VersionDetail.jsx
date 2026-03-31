@@ -159,18 +159,9 @@ export default function VersionDetail() {
             >
               <BuildCard
                 build={build}
-                onCopy={(e) => {
-                  e.stopPropagation();
-                  handleCopy(build);
-                }}
-                onRename={(e) => {
-                  e.stopPropagation();
-                  openRename(build);
-                }}
-                onDelete={(e) => {
-                  e.stopPropagation();
-                  openDelete(build);
-                }}
+                onCopy={() => handleCopy(build)}
+                onRename={() => openRename(build)}
+                onDelete={() => openDelete(build)}
               />
             </div>
           ))}

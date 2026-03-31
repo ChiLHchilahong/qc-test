@@ -90,14 +90,14 @@ export default function Dashboard() {
         </div>
         <p className="mt-2 text-base text-[#63748e] sm:text-lg max-[393px]:text-sm">Detailed Pass/Fail metrics per version</p>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:mt-8 sm:gap-6 xl:grid-cols-3 md:grid-cols-2">
-          {projects.map((project) => (
-            <HealthChart key={project.id} projectName={project.name} versions={project.versions} />
-          ))}
-        </div>
-
-        {projects.length === 0 && (
-          <p className="text-gray-400 mt-6 text-center">No project data available.</p>
+        {projects.length > 0 ? (
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:mt-8 sm:gap-6 xl:grid-cols-3 md:grid-cols-2">
+            {projects.map((project) => (
+              <HealthChart key={project.id} projectName={project.name} versions={project.versions} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-400 mt-4 text-center">No project data available.</p>
         )}
       </section>
 
@@ -127,23 +127,23 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:mt-8 sm:gap-5 md:grid-cols-2 xl:grid-cols-4">
-          {activeChecklists.map((checklist) => (
-            <div
-              key={checklist.id}
-              className="cursor-pointer"
-              onClick={() => {
-                if (!checklist.projectId || !checklist.versionId || !checklist.buildId) return;
-                navigate(`/projects/${checklist.projectId}/versions/${checklist.versionId}/builds/${checklist.buildId}`);
-              }}
-            >
-              <ActiveChecklist checklist={checklist} themeVariant={checklistTheme} />
-            </div>
-          ))}
-        </div>
-
-        {activeChecklists.length === 0 && (
-          <p className="text-gray-400 mt-6 text-center">No active checklists.</p>
+        {activeChecklists.length > 0 ? (
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:mt-8 sm:gap-5 md:grid-cols-2 xl:grid-cols-4">
+            {activeChecklists.map((checklist) => (
+              <div
+                key={checklist.id}
+                className="cursor-pointer"
+                onClick={() => {
+                  if (!checklist.projectId || !checklist.versionId || !checklist.buildId) return;
+                  navigate(`/projects/${checklist.projectId}/versions/${checklist.versionId}/builds/${checklist.buildId}`);
+                }}
+              >
+                <ActiveChecklist checklist={checklist} themeVariant={checklistTheme} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-400 mt-4 text-center">No active checklists.</p>
         )}
       </section>
     </div>

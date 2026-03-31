@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getVersions, getProjects, createVersion, updateVersion, deleteVersion } from '../api/client';
+import { getVersions, getProjects, createVersion, updateVersion, deleteVersion, deleteProject } from '../api/client';
 import VersionCard from '../components/VersionCard';
 import Modal from '../components/Modal';
 import { capitalizeDisplayName } from '../utils/textFormat';
@@ -18,6 +18,7 @@ export default function ProjectDetail() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDeleteProjectModal, setShowDeleteProjectModal] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState(null);
   const [nameInput, setNameInput] = useState('');
 
@@ -48,7 +49,7 @@ export default function ProjectDetail() {
 
   const handleRename = () => {
     if (!nameInput.trim() || !selectedVersion) return;
-    updateVersion(projectId, selectedVersion.id, { name: nameInput.trim() }).then(() => {
+    updateVersion(selectedVersion.id, { name: nameInput.trim() }).then(() => {
       setShowRenameModal(false);
       setNameInput('');
       setSelectedVersion(null);
@@ -58,10 +59,17 @@ export default function ProjectDetail() {
 
   const handleDelete = () => {
     if (!selectedVersion) return;
-    deleteVersion(projectId, selectedVersion.id).then(() => {
+    deleteVersion(selectedVersion.id).then(() => {
       setShowDeleteModal(false);
       setSelectedVersion(null);
       fetchVersions();
+    });
+  };
+
+  const handleDeleteProject = () => {
+    deleteProject(projectId).then(() => {
+      setShowDeleteProjectModal(false);
+      navigate('/projects', { replace: true });
     });
   };
 
@@ -106,17 +114,25 @@ export default function ProjectDetail() {
       </nav>
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <h1 className="text-2xl font-bold text-gray-900">{displayProjectName}</h1>
-        <button
-          onClick={() => {
-            setNameInput('');
-            setShowCreateModal(true);
-          }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-        >
-          + New Version
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setNameInput('');
+              setShowCreateModal(true);
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+          >
+            + New Version
+          </button>
+          <button
+            onClick={() => setShowDeleteProjectModal(true)}
+            className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-4 py-2 rounded-lg font-medium transition-colors"
+          >
+            Delete Project
+          </button>
+        </div>
       </div>
       <p className="text-gray-500 mb-6">Select a version to view its builds</p>
 
@@ -135,14 +151,8 @@ export default function ProjectDetail() {
             >
               <VersionCard
                 version={version}
-                onRename={(e) => {
-                  e.stopPropagation();
-                  openRename(version);
-                }}
-                onDelete={(e) => {
-                  e.stopPropagation();
-                  openDelete(version);
-                }}
+                onRename={() => openRename(version)}
+                onDelete={() => openDelete(version)}
               />
             </div>
           ))}
@@ -200,6 +210,20 @@ export default function ProjectDetail() {
       >
         <p className="text-gray-600">
           Are you sure you want to delete <strong>{selectedVersion?.name}</strong>? All builds and
+          test cases will be permanently removed.
+        </p>
+      </Modal>
+
+      <Modal
+        isOpen={showDeleteProjectModal}
+        onClose={() => setShowDeleteProjectModal(false)}
+        title="Delete Project"
+        onConfirm={handleDeleteProject}
+        confirmText="Delete"
+        confirmVariant="danger"
+      >
+        <p className="text-gray-600">
+          Are you sure you want to delete <strong>{displayProjectName}</strong>? All versions, builds and
           test cases will be permanently removed.
         </p>
       </Modal>

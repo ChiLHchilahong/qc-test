@@ -115,14 +115,8 @@ export default function Projects() {
             >
               <ProjectCard
                 project={project}
-                onRename={(e) => {
-                  e.stopPropagation();
-                  openRename(project);
-                }}
-                onDelete={(e) => {
-                  e.stopPropagation();
-                  openDelete(project);
-                }}
+                onRename={() => openRename(project)}
+                onDelete={() => openDelete(project)}
               />
             </div>
           ))}
