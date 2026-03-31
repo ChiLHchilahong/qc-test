@@ -1,14 +1,33 @@
 import { Router } from 'express';
 import db from '../db.js';
+import { getOwnerScope } from '../owner-scope.js';
 
 const router = Router();
+
+function getOwnedBuild(scope, buildId) {
+  return scope.isAdmin
+    ? db.prepare('SELECT id FROM builds WHERE id = ?').get(buildId)
+    : db.prepare(`
+        SELECT b.id
+        FROM builds b
+        JOIN versions v ON v.id = b.version_id
+        JOIN projects p ON p.id = v.project_id
+        WHERE b.id = ? AND p.owner_key = ?
+      `).get(buildId, scope.ownerKey);
+}
 
 // GET / - List all test cases for a build ordered by sort_order
 router.get('/', (req, res) => {
   try {
+    const scope = getOwnerScope(req);
     const { buildId } = req.query;
     if (!buildId) {
       return res.status(400).json({ error: 'buildId query parameter is required' });
+    }
+
+    const build = getOwnedBuild(scope, buildId);
+    if (!build) {
+      return res.status(404).json({ error: 'Build not found' });
     }
 
     const testCases = db.prepare(
@@ -24,6 +43,7 @@ router.get('/', (req, res) => {
 // PUT /bulk - Bulk update multiple test cases (must be before /:id)
 router.put('/bulk', (req, res) => {
   try {
+    const scope = getOwnerScope(req);
     const { ids, updates } = req.body;
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'ids array is required' });
@@ -53,6 +73,22 @@ router.put('/bulk', (req, res) => {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
 
+    if (!scope.isAdmin) {
+      const placeholdersOwned = ids.map(() => '?').join(',');
+      const ownedCount = db.prepare(`
+        SELECT COUNT(*) AS c
+        FROM test_cases tc
+        JOIN builds b ON b.id = tc.build_id
+        JOIN versions v ON v.id = b.version_id
+        JOIN projects p ON p.id = v.project_id
+        WHERE tc.id IN (${placeholdersOwned}) AND p.owner_key = ?
+      `).get(...ids, scope.ownerKey);
+
+      if (Number(ownedCount?.c || 0) !== ids.length) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+    }
+
     const placeholders = ids.map(() => '?').join(',');
     const sql = `UPDATE test_cases SET ${setClauses.join(', ')} WHERE id IN (${placeholders})`;
 
@@ -71,12 +107,13 @@ router.put('/bulk', (req, res) => {
 // POST / - Create test case
 router.post('/', (req, res) => {
   try {
+    const scope = getOwnerScope(req);
     const { buildId, feature, description, testToPerform, testStatus, result, issue, note } = req.body;
     if (!buildId) {
       return res.status(400).json({ error: 'buildId is required' });
     }
 
-    const build = db.prepare('SELECT id FROM builds WHERE id = ?').get(buildId);
+    const build = getOwnedBuild(scope, buildId);
     if (!build) {
       return res.status(404).json({ error: 'Build not found' });
     }
@@ -111,6 +148,7 @@ router.post('/', (req, res) => {
 // PUT /:id - Update test case (partial update)
 router.put('/:id', (req, res) => {
   try {
+    const scope = getOwnerScope(req);
     const allowedFields = ['feature', 'description', 'test_to_perform', 'test_status', 'result', 'issue', 'note', 'sort_order'];
     const fieldMap = {
       testToPerform: 'test_to_perform',
@@ -132,8 +170,20 @@ router.put('/:id', (req, res) => {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
 
-    values.push(req.params.id);
-    const result = db.prepare(`UPDATE test_cases SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+    const result = scope.isAdmin
+      ? db.prepare(`UPDATE test_cases SET ${setClauses.join(', ')} WHERE id = ?`).run(...values, req.params.id)
+      : db.prepare(`
+          UPDATE test_cases
+          SET ${setClauses.join(', ')}
+          WHERE id = ?
+            AND build_id IN (
+              SELECT b.id
+              FROM builds b
+              JOIN versions v ON v.id = b.version_id
+              JOIN projects p ON p.id = v.project_id
+              WHERE p.owner_key = ?
+            )
+        `).run(...values, req.params.id, scope.ownerKey);
 
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Test case not found' });
@@ -149,7 +199,20 @@ router.put('/:id', (req, res) => {
 // DELETE /:id - Delete test case
 router.delete('/:id', (req, res) => {
   try {
-    const result = db.prepare('DELETE FROM test_cases WHERE id = ?').run(req.params.id);
+    const scope = getOwnerScope(req);
+    const result = scope.isAdmin
+      ? db.prepare('DELETE FROM test_cases WHERE id = ?').run(req.params.id)
+      : db.prepare(`
+          DELETE FROM test_cases
+          WHERE id = ?
+            AND build_id IN (
+              SELECT b.id
+              FROM builds b
+              JOIN versions v ON v.id = b.version_id
+              JOIN projects p ON p.id = v.project_id
+              WHERE p.owner_key = ?
+            )
+        `).run(req.params.id, scope.ownerKey);
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Test case not found' });
     }
@@ -163,6 +226,7 @@ router.delete('/:id', (req, res) => {
 // POST /import - Bulk import test cases
 router.post('/import', (req, res) => {
   try {
+    const scope = getOwnerScope(req);
     const { buildId, testCases } = req.body;
     if (!buildId) {
       return res.status(400).json({ error: 'buildId is required' });
@@ -171,7 +235,7 @@ router.post('/import', (req, res) => {
       return res.status(400).json({ error: 'testCases array is required and must not be empty' });
     }
 
-    const build = db.prepare('SELECT id FROM builds WHERE id = ?').get(buildId);
+    const build = getOwnedBuild(scope, buildId);
     if (!build) {
       return res.status(404).json({ error: 'Build not found' });
     }

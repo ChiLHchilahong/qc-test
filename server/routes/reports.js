@@ -1,13 +1,17 @@
 import { Router } from 'express';
 import db from '../db.js';
+import { getOwnerScope } from '../owner-scope.js';
 
 const router = Router();
 
 // GET /dashboard - Aggregated dashboard data
 router.get('/dashboard', (req, res) => {
   try {
+    const scope = getOwnerScope(req);
     // Per-project summary with version-level pass/fail counts
-    const projects = db.prepare('SELECT * FROM projects ORDER BY created_at DESC').all();
+    const projects = scope.isAdmin
+      ? db.prepare('SELECT * FROM projects ORDER BY created_at DESC').all()
+      : db.prepare('SELECT * FROM projects WHERE owner_key = ? ORDER BY created_at DESC').all(scope.ownerKey);
 
     const projectSummaries = projects.map((project) => {
       const versions = db.prepare('SELECT * FROM versions WHERE project_id = ? ORDER BY created_at DESC').all(project.id);
@@ -45,28 +49,52 @@ router.get('/dashboard', (req, res) => {
     });
 
     // Active checklists: builds with status and execution percentage
-    const activeBuilds = db.prepare(`
-      SELECT
-        b.id AS build_id,
-        b.name AS build_name,
-        b.created_at,
-        v.id AS version_id,
-        v.name AS version_name,
-        p.id AS project_id,
-        p.name AS project_name,
-        COUNT(tc.id) AS total,
-        SUM(CASE WHEN tc.result = 'Passed' THEN 1 ELSE 0 END) AS passed,
-        SUM(CASE WHEN tc.result = 'Failed' THEN 1 ELSE 0 END) AS failed,
-        SUM(CASE WHEN tc.result = 'Warning' THEN 1 ELSE 0 END) AS warning,
-        SUM(CASE WHEN tc.result = 'Not Run' THEN 1 ELSE 0 END) AS not_run,
-        SUM(CASE WHEN tc.result = 'In Progress' THEN 1 ELSE 0 END) AS in_progress
-      FROM builds b
-      JOIN versions v ON v.id = b.version_id
-      JOIN projects p ON p.id = v.project_id
-      LEFT JOIN test_cases tc ON tc.build_id = b.id
-      GROUP BY b.id
-      ORDER BY b.created_at DESC
-    `).all();
+    const activeBuilds = scope.isAdmin
+      ? db.prepare(`
+          SELECT
+            b.id AS build_id,
+            b.name AS build_name,
+            b.created_at,
+            v.id AS version_id,
+            v.name AS version_name,
+            p.id AS project_id,
+            p.name AS project_name,
+            COUNT(tc.id) AS total,
+            SUM(CASE WHEN tc.result = 'Passed' THEN 1 ELSE 0 END) AS passed,
+            SUM(CASE WHEN tc.result = 'Failed' THEN 1 ELSE 0 END) AS failed,
+            SUM(CASE WHEN tc.result = 'Warning' THEN 1 ELSE 0 END) AS warning,
+            SUM(CASE WHEN tc.result = 'Not Run' THEN 1 ELSE 0 END) AS not_run,
+            SUM(CASE WHEN tc.result = 'In Progress' THEN 1 ELSE 0 END) AS in_progress
+          FROM builds b
+          JOIN versions v ON v.id = b.version_id
+          JOIN projects p ON p.id = v.project_id
+          LEFT JOIN test_cases tc ON tc.build_id = b.id
+          GROUP BY b.id
+          ORDER BY b.created_at DESC
+        `).all()
+      : db.prepare(`
+          SELECT
+            b.id AS build_id,
+            b.name AS build_name,
+            b.created_at,
+            v.id AS version_id,
+            v.name AS version_name,
+            p.id AS project_id,
+            p.name AS project_name,
+            COUNT(tc.id) AS total,
+            SUM(CASE WHEN tc.result = 'Passed' THEN 1 ELSE 0 END) AS passed,
+            SUM(CASE WHEN tc.result = 'Failed' THEN 1 ELSE 0 END) AS failed,
+            SUM(CASE WHEN tc.result = 'Warning' THEN 1 ELSE 0 END) AS warning,
+            SUM(CASE WHEN tc.result = 'Not Run' THEN 1 ELSE 0 END) AS not_run,
+            SUM(CASE WHEN tc.result = 'In Progress' THEN 1 ELSE 0 END) AS in_progress
+          FROM builds b
+          JOIN versions v ON v.id = b.version_id
+          JOIN projects p ON p.id = v.project_id
+          LEFT JOIN test_cases tc ON tc.build_id = b.id
+          WHERE p.owner_key = ?
+          GROUP BY b.id
+          ORDER BY b.created_at DESC
+        `).all(scope.ownerKey);
 
     const checklists = activeBuilds.map((build) => {
       const resultCounts = [

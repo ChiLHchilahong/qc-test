@@ -25,6 +25,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
+    owner_key TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   );
 
@@ -66,6 +67,15 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now'))
   );
 `);
+
+const projectColumns = db.prepare('PRAGMA table_info(projects)').all();
+const hasOwnerKey = projectColumns.some((c) => c.name === 'owner_key');
+if (!hasOwnerKey) {
+  db.exec('ALTER TABLE projects ADD COLUMN owner_key TEXT');
+}
+
+db.prepare("UPDATE projects SET owner_key = 'user:admin' WHERE owner_key IS NULL OR owner_key = ''").run();
+db.exec('CREATE INDEX IF NOT EXISTS idx_projects_owner_key ON projects(owner_key)');
 
 const defaultUsername = process.env.DEFAULT_LOGIN_USERNAME || 'admin';
 const defaultPassword = process.env.DEFAULT_LOGIN_PASSWORD || '123456';

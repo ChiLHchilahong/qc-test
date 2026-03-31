@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import { getHasAnyAccount, loginAccount, registerAccount } from '../api/client';
 
 const SESSION_STORAGE_KEY = 'qc_auth_session';
+const GUEST_ID_STORAGE_KEY = 'qc_guest_id';
 const SESSION_TTL_MS = 30 * 60 * 1000;
 const AuthContext = createContext(null);
 
@@ -81,10 +82,22 @@ export function AuthProvider({ children }) {
   };
 
   const enterGuest = () => {
+    let guestId = '';
+    try {
+      guestId = localStorage.getItem(GUEST_ID_STORAGE_KEY) || '';
+      if (!guestId) {
+        guestId = (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+        localStorage.setItem(GUEST_ID_STORAGE_KEY, guestId);
+      }
+    } catch {
+      guestId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+
     const guestUser = {
       username: 'Guest',
       loginAt: Date.now(),
       isGuest: true,
+      guestId,
     };
 
     localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(guestUser));

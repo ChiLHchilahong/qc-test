@@ -7,6 +7,24 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+api.interceptors.request.use((config) => {
+  try {
+    const raw = localStorage.getItem('qc_auth_session');
+    const session = raw ? JSON.parse(raw) : null;
+    const username = String(session?.username || '').trim();
+    const isGuest = Boolean(session?.isGuest);
+    const guestId = String(session?.guestId || '').trim();
+
+    config.headers = config.headers || {};
+    if (username) config.headers['x-qc-username'] = username;
+    config.headers['x-qc-is-guest'] = isGuest ? 'true' : 'false';
+    if (guestId) config.headers['x-qc-guest-id'] = guestId;
+  } catch {
+    // no-op: continue request without auth scope headers
+  }
+  return config;
+});
+
 const DATA_CHANGED_EVENT = 'qc:data-changed';
 
 const notifyDataChanged = () => {
