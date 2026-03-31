@@ -109,6 +109,12 @@ export const deleteBug = async (id) => {
   notifyDataChanged();
 };
 
+export const bulkUpdateBugStatus = async (ids, status, resolution_note) => {
+  const res = await api.post('/api/bugs/bulk-status', { ids, status, resolution_note });
+  notifyDataChanged();
+  return res.data;
+};
+
 // ─── PROJECT ─────────────────────────
 export const getProjects = async () => {
   const res = await api.get('/api/projects');
@@ -318,4 +324,10 @@ export const importTestPlans = async (plans) => {
   const res = await api.post('/api/test-plans/import', { plans });
   notifyDataChanged();
   return res.data;
+};
+
+// ─── REPORTS ─────────────────────────
+export const getBuildTrend = async (versionId) => {
+  const res = await api.get('/api/reports/build-trend', { params: { version_id: versionId } });
+  return Array.isArray(res.data) ? res.data : [];
 };

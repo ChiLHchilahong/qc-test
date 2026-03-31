@@ -159,12 +159,12 @@ router.post('/:id/copy', (req, res) => {
       const testCases = db.prepare('SELECT * FROM test_cases WHERE build_id = ? ORDER BY sort_order').all(req.params.id);
 
       const insertTC = db.prepare(`
-        INSERT INTO test_cases (build_id, feature, description, test_to_perform, test_status, result, issue, note, sort_order)
-        VALUES (?, ?, ?, ?, ?, 'Not Run', ?, ?, ?)
+        INSERT INTO test_cases (build_id, feature, description, test_to_perform, test_status, result, issue, note, sort_order, category)
+        VALUES (?, ?, ?, ?, ?, 'Not Run', ?, ?, ?, ?)
       `);
 
       for (const tc of testCases) {
-        insertTC.run(newBuildId, tc.feature, tc.description, tc.test_to_perform, tc.test_status, tc.issue, tc.note, tc.sort_order);
+        insertTC.run(newBuildId, tc.feature, tc.description, tc.test_to_perform, tc.test_status, tc.issue, tc.note, tc.sort_order, tc.category || 'General');
       }
 
       return db.prepare('SELECT * FROM builds WHERE id = ?').get(newBuildId);

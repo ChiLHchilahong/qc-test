@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   getTestCases, getProjects, getVersions, getBuilds,
   createTestCase, updateTestCase, deleteTestCase,
-  importTestCases,
+  importTestCases, getBugs,
 } from '../api/client';
 import Modal from '../components/Modal';
 import { capitalizeDisplayName } from '../utils/textFormat';
@@ -699,7 +699,7 @@ export default function BuildChecklist() {
   const [projectName, setProjectName] = useState('');
   const [versionName, setVersionName] = useState('');
   const [buildName, setBuildName] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [openBugCount, setOpenBugCount] = useState(0);
   const [error, setError] = useState(null);
   const [showImport, setShowImport] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
@@ -748,6 +748,10 @@ export default function BuildChecklist() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+    // Fetch open bug count for this build
+    getBugs({ build_id: buildId, status: 'Open' }).then((data) => {
+      setOpenBugCount(Array.isArray(data) ? data.length : 0);
+    }).catch(() => {});
   }, [buildId, projectId, versionId]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
@@ -1125,7 +1129,18 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
         <span className="text-gray-900 font-medium">{displayBuildName}</span>
       </nav>
 
-      <h1 className="text-2xl font-bold text-gray-900 mb-4">{displayBuildName}</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-4">
+        {displayBuildName}
+        {openBugCount > 0 && (
+          <Link
+            to={`/bugs`}
+            className="ml-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-300 hover:bg-red-200"
+            title={`${openBugCount} open bug(s) linked to this build`}
+          >
+            🐛 {openBugCount} Open Bug{openBugCount !== 1 ? 's' : ''}
+          </Link>
+        )}
+      </h1>
 
       {/* Stats */}
       <div className="flex flex-wrap gap-2 mb-4">

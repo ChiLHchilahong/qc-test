@@ -8,11 +8,11 @@ const ALLOWED_SEVERITY = ['Critical', 'Major', 'Minor', 'Trivial'];
 const ALLOWED_PRIORITY = ['High', 'Medium', 'Low'];
 const ALLOWED_STATUS   = ['Open', 'In Progress', 'Fixed', 'Retest', 'Closed'];
 
-// GET / - List bugs (supports ?project_id, ?build_id, ?status, ?severity filters)
+// GET / - List bugs (supports ?project_id, ?version_id, ?build_id, ?status, ?severity, ?test_plan_id filters)
 router.get('/', (req, res) => {
   try {
     const scope = getOwnerScope(req);
-    const { project_id, build_id, status, severity } = req.query;
+    const { project_id, version_id, build_id, status, severity, test_plan_id } = req.query;
 
     let sql = `
       SELECT b.*,
@@ -31,10 +31,12 @@ router.get('/', (req, res) => {
       sql += ' AND b.owner_key = ?';
       params.push(scope.ownerKey);
     }
-    if (project_id) { sql += ' AND b.project_id = ?'; params.push(project_id); }
-    if (build_id)   { sql += ' AND b.build_id = ?';   params.push(build_id); }
-    if (status)     { sql += ' AND b.status = ?';     params.push(status); }
-    if (severity)   { sql += ' AND b.severity = ?';   params.push(severity); }
+    if (project_id)   { sql += ' AND b.project_id = ?';   params.push(project_id); }
+    if (version_id)   { sql += ' AND b.version_id = ?';   params.push(version_id); }
+    if (build_id)     { sql += ' AND b.build_id = ?';     params.push(build_id); }
+    if (status)       { sql += ' AND b.status = ?';       params.push(status); }
+    if (severity)     { sql += ' AND b.severity = ?';     params.push(severity); }
+    if (test_plan_id) { sql += ' AND b.test_plan_id = ?'; params.push(test_plan_id); }
 
     sql += ' ORDER BY b.id DESC';
 
@@ -108,8 +110,8 @@ router.put('/:id', (req, res) => {
     const allowed = [
       'title', 'description', 'steps_to_reproduce', 'expected_result', 'actual_result',
       'severity', 'priority', 'status', 'environment',
-      'project_id', 'version_id', 'build_id', 'test_case_id',
-      'reported_by', 'assigned_to',
+      'project_id', 'version_id', 'build_id', 'test_case_id', 'test_plan_id',
+      'reported_by', 'assigned_to', 'resolution_note',
     ];
 
     const setClauses = [];
@@ -152,6 +154,44 @@ router.delete('/:id', (req, res) => {
 
     if (result.changes === 0) return res.status(404).json({ error: 'Bug not found' });
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /bulk-status - Bulk update status for multiple bugs
+router.post('/bulk-status', (req, res) => {
+  try {
+    const scope = getOwnerScope(req);
+    const { ids, status, resolution_note } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids array is required' });
+    }
+    if (!ALLOWED_STATUS.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+
+    const setClauses = ["status = ?", "updated_at = datetime('now')"];
+    const baseValues = [status];
+    if (resolution_note !== undefined) {
+      setClauses.push('resolution_note = ?');
+      baseValues.push(resolution_note);
+    }
+
+    const update = db.transaction(() => {
+      let changed = 0;
+      for (const id of ids) {
+        const r = scope.isAdmin
+          ? db.prepare(`UPDATE bugs SET ${setClauses.join(', ')} WHERE id = ?`).run(...baseValues, id)
+          : db.prepare(`UPDATE bugs SET ${setClauses.join(', ')} WHERE id = ? AND owner_key = ?`).run(...baseValues, id, scope.ownerKey);
+        changed += r.changes;
+      }
+      return changed;
+    });
+
+    const changed = update();
+    res.json({ success: true, updated: changed });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -20,10 +20,13 @@ router.get('/dashboard', (req, res) => {
         const stats = db.prepare(`
           SELECT
             COUNT(tc.id) AS total,
-            SUM(CASE WHEN tc.result = 'Passed' THEN 1 ELSE 0 END) AS passed,
-            SUM(CASE WHEN tc.result = 'Failed' THEN 1 ELSE 0 END) AS failed,
-            SUM(CASE WHEN tc.result = 'Warning' THEN 1 ELSE 0 END) AS warning,
-            SUM(CASE WHEN tc.result = 'Not Run' THEN 1 ELSE 0 END) AS not_run
+            SUM(CASE WHEN lower(trim(coalesce(tc.result,''))) IN ('passed','pass') THEN 1 ELSE 0 END) AS passed,
+            SUM(CASE WHEN lower(trim(coalesce(tc.result,''))) IN ('failed','fail') THEN 1 ELSE 0 END) AS failed,
+            SUM(CASE WHEN lower(trim(coalesce(tc.result,''))) IN ('warning','warn') THEN 1 ELSE 0 END) AS warning,
+            SUM(CASE WHEN tc.id IS NOT NULL AND lower(trim(coalesce(tc.result,''))) NOT IN (
+              'passed','pass','failed','fail','warning','warn',
+              'in progress','in-progress','in_progress','inprogress'
+            ) THEN 1 ELSE 0 END) AS not_run
           FROM test_cases tc
           JOIN builds b ON b.id = tc.build_id
           WHERE b.version_id = ?
@@ -60,11 +63,11 @@ router.get('/dashboard', (req, res) => {
             p.id AS project_id,
             p.name AS project_name,
             COUNT(tc.id) AS total,
-            SUM(CASE WHEN tc.result = 'Passed' THEN 1 ELSE 0 END) AS passed,
-            SUM(CASE WHEN tc.result = 'Failed' THEN 1 ELSE 0 END) AS failed,
-            SUM(CASE WHEN tc.result = 'Warning' THEN 1 ELSE 0 END) AS warning,
-            SUM(CASE WHEN tc.result = 'Not Run' THEN 1 ELSE 0 END) AS not_run,
-            SUM(CASE WHEN tc.result = 'In Progress' THEN 1 ELSE 0 END) AS in_progress
+            SUM(CASE WHEN lower(trim(coalesce(tc.result,''))) IN ('passed','pass') THEN 1 ELSE 0 END) AS passed,
+            SUM(CASE WHEN lower(trim(coalesce(tc.result,''))) IN ('failed','fail') THEN 1 ELSE 0 END) AS failed,
+            SUM(CASE WHEN lower(trim(coalesce(tc.result,''))) IN ('warning','warn') THEN 1 ELSE 0 END) AS warning,
+            SUM(CASE WHEN tc.id IS NOT NULL AND lower(trim(coalesce(tc.result,''))) NOT IN ('passed','pass','failed','fail','warning','warn','in progress','in-progress','in_progress','inprogress') THEN 1 ELSE 0 END) AS not_run,
+            SUM(CASE WHEN lower(trim(coalesce(tc.result,''))) IN ('in progress','in-progress','in_progress','inprogress') THEN 1 ELSE 0 END) AS in_progress
           FROM builds b
           JOIN versions v ON v.id = b.version_id
           JOIN projects p ON p.id = v.project_id
@@ -82,11 +85,11 @@ router.get('/dashboard', (req, res) => {
             p.id AS project_id,
             p.name AS project_name,
             COUNT(tc.id) AS total,
-            SUM(CASE WHEN tc.result = 'Passed' THEN 1 ELSE 0 END) AS passed,
-            SUM(CASE WHEN tc.result = 'Failed' THEN 1 ELSE 0 END) AS failed,
-            SUM(CASE WHEN tc.result = 'Warning' THEN 1 ELSE 0 END) AS warning,
-            SUM(CASE WHEN tc.result = 'Not Run' THEN 1 ELSE 0 END) AS not_run,
-            SUM(CASE WHEN tc.result = 'In Progress' THEN 1 ELSE 0 END) AS in_progress
+            SUM(CASE WHEN lower(trim(coalesce(tc.result,''))) IN ('passed','pass') THEN 1 ELSE 0 END) AS passed,
+            SUM(CASE WHEN lower(trim(coalesce(tc.result,''))) IN ('failed','fail') THEN 1 ELSE 0 END) AS failed,
+            SUM(CASE WHEN lower(trim(coalesce(tc.result,''))) IN ('warning','warn') THEN 1 ELSE 0 END) AS warning,
+            SUM(CASE WHEN tc.id IS NOT NULL AND lower(trim(coalesce(tc.result,''))) NOT IN ('passed','pass','failed','fail','warning','warn','in progress','in-progress','in_progress','inprogress') THEN 1 ELSE 0 END) AS not_run,
+            SUM(CASE WHEN lower(trim(coalesce(tc.result,''))) IN ('in progress','in-progress','in_progress','inprogress') THEN 1 ELSE 0 END) AS in_progress
           FROM builds b
           JOIN versions v ON v.id = b.version_id
           JOIN projects p ON p.id = v.project_id
@@ -142,6 +145,66 @@ router.get('/dashboard', (req, res) => {
     });
 
     res.json({ projects: projectSummaries, checklists });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /build-trend?version_id=X - Pass rate per build for a version (for trend chart)
+router.get('/build-trend', (req, res) => {
+  try {
+    const scope = getOwnerScope(req);
+    const { version_id } = req.query;
+    if (!version_id) return res.status(400).json({ error: 'version_id is required' });
+
+    const rows = scope.isAdmin
+      ? db.prepare(`
+          SELECT
+            b.id AS build_id,
+            b.name AS build_name,
+            b.created_at,
+            COUNT(tc.id) AS total,
+            SUM(CASE WHEN lower(trim(coalesce(tc.result,''))) IN ('passed','pass') THEN 1 ELSE 0 END) AS passed,
+            SUM(CASE WHEN lower(trim(coalesce(tc.result,''))) IN ('failed','fail') THEN 1 ELSE 0 END) AS failed,
+            SUM(CASE WHEN lower(trim(coalesce(tc.result,''))) IN ('warning','warn') THEN 1 ELSE 0 END) AS warning,
+            SUM(CASE WHEN tc.id IS NOT NULL AND lower(trim(coalesce(tc.result,''))) NOT IN ('passed','pass','failed','fail','warning','warn','in progress','in-progress','in_progress','inprogress') THEN 1 ELSE 0 END) AS not_run
+          FROM builds b
+          LEFT JOIN test_cases tc ON tc.build_id = b.id
+          WHERE b.version_id = ?
+          GROUP BY b.id
+          ORDER BY b.created_at ASC
+        `).all(version_id)
+      : db.prepare(`
+          SELECT
+            b.id AS build_id,
+            b.name AS build_name,
+            b.created_at,
+            COUNT(tc.id) AS total,
+            SUM(CASE WHEN lower(trim(coalesce(tc.result,''))) IN ('passed','pass') THEN 1 ELSE 0 END) AS passed,
+            SUM(CASE WHEN lower(trim(coalesce(tc.result,''))) IN ('failed','fail') THEN 1 ELSE 0 END) AS failed,
+            SUM(CASE WHEN lower(trim(coalesce(tc.result,''))) IN ('warning','warn') THEN 1 ELSE 0 END) AS warning,
+            SUM(CASE WHEN tc.id IS NOT NULL AND lower(trim(coalesce(tc.result,''))) NOT IN ('passed','pass','failed','fail','warning','warn','in progress','in-progress','in_progress','inprogress') THEN 1 ELSE 0 END) AS not_run
+          FROM builds b
+          JOIN versions v ON v.id = b.version_id
+          JOIN projects p ON p.id = v.project_id
+          LEFT JOIN test_cases tc ON tc.build_id = b.id
+          WHERE b.version_id = ? AND p.owner_key = ?
+          GROUP BY b.id
+          ORDER BY b.created_at ASC
+        `).all(version_id, scope.ownerKey);
+
+    const trend = rows.map((r) => ({
+      build_id: r.build_id,
+      build_name: r.build_name,
+      total: r.total || 0,
+      passed: r.passed || 0,
+      failed: r.failed || 0,
+      warning: r.warning || 0,
+      not_run: r.not_run || 0,
+      pass_rate: r.total > 0 ? Math.round((r.passed / r.total) * 1000) / 10 : 0,
+    }));
+
+    res.json(trend);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

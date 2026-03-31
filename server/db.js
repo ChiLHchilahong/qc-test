@@ -156,6 +156,15 @@ if (!hasCategory) {
   db.exec("ALTER TABLE test_cases ADD COLUMN category TEXT DEFAULT 'General'");
 }
 
+// ── Migration: test_plan_id + resolution_note on bugs ────────────────
+const bugColumns = db.prepare('PRAGMA table_info(bugs)').all();
+if (!bugColumns.some((c) => c.name === 'test_plan_id')) {
+  db.exec('ALTER TABLE bugs ADD COLUMN test_plan_id INTEGER REFERENCES test_plans(id) ON DELETE SET NULL');
+}
+if (!bugColumns.some((c) => c.name === 'resolution_note')) {
+  db.exec("ALTER TABLE bugs ADD COLUMN resolution_note TEXT DEFAULT ''");
+}
+
 db.exec('CREATE INDEX IF NOT EXISTS idx_projects_owner_key ON projects(owner_key)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_test_plans_owner_key ON test_plans(owner_key)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_test_plans_project_id ON test_plans(project_id)');

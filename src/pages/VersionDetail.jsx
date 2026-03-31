@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale, LinearScale, PointElement, LineElement,
+  Title, Tooltip, Legend, Filler,
+} from 'chart.js';
 import {
   getBuilds,
   getProjects,
@@ -8,10 +14,13 @@ import {
   copyBuild,
   updateBuild,
   deleteBuild,
+  getBuildTrend,
 } from '../api/client';
 import BuildCard from '../components/BuildCard';
 import Modal from '../components/Modal';
 import { capitalizeDisplayName } from '../utils/textFormat';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 export default function VersionDetail() {
   const { projectId, versionId } = useParams();
@@ -22,6 +31,7 @@ export default function VersionDetail() {
   const [versionName, setVersionName] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [trendData, setTrendData] = useState([]);
 
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -42,6 +52,7 @@ export default function VersionDetail() {
       })
       .catch((err) => setError(err.message || 'Failed to load builds'))
       .finally(() => setLoading(false));
+    getBuildTrend(versionId).then((data) => setTrendData(Array.isArray(data) ? data : [])).catch(() => {});
   }, [versionId, projectId]);
 
   useEffect(() => {
@@ -147,6 +158,57 @@ export default function VersionDetail() {
         </div>
       </div>
       <p className="mb-6 text-base font-medium text-[#5f708a] sm:mb-8 sm:text-lg max-[393px]:text-sm">Select a build to open its checklist</p>
+
+      {/* Trend Chart */}
+      {trendData.length >= 2 && (
+        <div className="mb-8 bg-white rounded-2xl shadow p-5">
+          <h2 className="text-base font-bold text-gray-700 mb-4">Pass Rate Trend</h2>
+          <Line
+            data={{
+              labels: trendData.map((d) => d.build_name),
+              datasets: [
+                {
+                  label: 'Pass Rate (%)',
+                  data: trendData.map((d) => d.pass_rate),
+                  borderColor: '#22c55e',
+                  backgroundColor: 'rgba(34,197,94,0.08)',
+                  tension: 0.3,
+                  fill: true,
+                  pointRadius: 5,
+                  pointBackgroundColor: '#22c55e',
+                },
+                {
+                  label: 'Failed',
+                  data: trendData.map((d) => d.total > 0 ? Math.round((d.failed / d.total) * 1000) / 10 : 0),
+                  borderColor: '#ef4444',
+                  backgroundColor: 'transparent',
+                  tension: 0.3,
+                  pointRadius: 4,
+                  borderDash: [4, 3],
+                },
+              ],
+            }}
+            options={{
+              responsive: true,
+              plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                  callbacks: {
+                    label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y}%`,
+                    afterLabel: (ctx) => {
+                      const d = trendData[ctx.dataIndex];
+                      return `  Total: ${d.total} | Pass: ${d.passed} | Fail: ${d.failed} | Warn: ${d.warning}`;
+                    },
+                  },
+                },
+              },
+              scales: {
+                y: { min: 0, max: 100, ticks: { callback: (v) => `${v}%` } },
+              },
+            }}
+          />
+        </div>
+      )}
 
       {/* Grid */}
       {builds.length === 0 ? (
