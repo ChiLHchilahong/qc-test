@@ -465,19 +465,19 @@ export default function TestPlans() {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={importing}
-            className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {importing ? 'Importing...' : 'Import Excel/CSV'}
+            {importing ? 'Importing...' : 'Import'}
           </button>
           <button
             onClick={handleDownloadTemplateExcel}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+            className="rounded-lg bg-slate-500 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-600"
           >
             Template Excel
           </button>
           <button
             onClick={handleDownloadTemplateCSV}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+            className="rounded-lg bg-slate-500 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-600"
           >
             Template CSV
           </button>
@@ -489,13 +489,13 @@ export default function TestPlans() {
           </button>
           <button
             onClick={handleExportCSV}
-            className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-semibold text-white hover:bg-purple-700"
+            className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
           >
             Export CSV
           </button>
           <button
             onClick={handleOpenCreate}
-            className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700"
+            className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
           >
             + New Test Plan
           </button>
@@ -544,15 +544,13 @@ export default function TestPlans() {
           {plans.map((plan) => (
             <article
               key={plan.id}
-              className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+              onClick={() => navigate(`/test-plans/${plan.id}`)}
+              className="cursor-pointer rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
             >
               <div className="mb-2 flex items-start justify-between gap-3">
-                <button
-                  onClick={() => navigate(`/test-plans/${plan.id}`)}
-                  className="text-left text-lg font-semibold text-gray-900 hover:text-blue-700"
-                >
+                <span className="text-left text-lg font-semibold text-gray-900">
                   {plan.name}
-                </button>
+                </span>
                 <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
                   {plan.status}
                 </span>
@@ -573,13 +571,13 @@ export default function TestPlans() {
 
               <div className="mt-4 flex items-center gap-2">
                 <button
-                  onClick={() => navigate(`/test-plans/${plan.id}`)}
+                  onClick={(e) => { e.stopPropagation(); navigate(`/test-plans/${plan.id}`); }}
                   className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
                 >
                   Open
                 </button>
                 <button
-                  onClick={() => openDelete(plan)}
+                  onClick={(e) => { e.stopPropagation(); openDelete(plan); }}
                   className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100"
                 >
                   Delete
