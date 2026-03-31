@@ -12,6 +12,7 @@ import TestPlans from './pages/TestPlans';
 import TestPlanDetail from './pages/TestPlanDetail';
 import Profile from './pages/Profile';
 import Login from './pages/Login';
+import Bugs from './pages/Bugs';
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
               />
               <Route path="/test-plans" element={<TestPlans />} />
               <Route path="/test-plans/:planId" element={<TestPlanDetail />} />
+              <Route path="/bugs" element={<Bugs />} />
               <Route path="/profile" element={<Profile />} />
             </Route>
           </Route>

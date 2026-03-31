@@ -52,7 +52,7 @@ router.put('/bulk', (req, res) => {
       return res.status(400).json({ error: 'updates object is required' });
     }
 
-    const allowedFields = ['feature', 'description', 'test_to_perform', 'test_status', 'result', 'issue', 'note', 'sort_order'];
+    const allowedFields = ['feature', 'description', 'test_to_perform', 'test_status', 'result', 'issue', 'note', 'sort_order', 'category'];
     const fieldMap = {
       testToPerform: 'test_to_perform',
       testStatus: 'test_status',
@@ -108,7 +108,7 @@ router.put('/bulk', (req, res) => {
 router.post('/', (req, res) => {
   try {
     const scope = getOwnerScope(req);
-    const { buildId, feature, description, testToPerform, testStatus, result, issue, note } = req.body;
+    const { buildId, feature, description, testToPerform, testStatus, result, issue, note, category } = req.body;
     if (!buildId) {
       return res.status(400).json({ error: 'buildId is required' });
     }
@@ -124,8 +124,8 @@ router.post('/', (req, res) => {
     ).get(buildId);
 
     const result2 = db.prepare(`
-      INSERT INTO test_cases (build_id, feature, description, test_to_perform, test_status, result, issue, note, sort_order)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO test_cases (build_id, feature, description, test_to_perform, test_status, result, issue, note, sort_order, category)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       buildId,
       feature || null,
@@ -135,7 +135,8 @@ router.post('/', (req, res) => {
       result || 'Not Run',
       issue || null,
       note || null,
-      maxOrder.max_order + 1
+      maxOrder.max_order + 1,
+      category || 'General'
     );
 
     const testCase = db.prepare('SELECT * FROM test_cases WHERE id = ?').get(result2.lastInsertRowid);
@@ -149,7 +150,7 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   try {
     const scope = getOwnerScope(req);
-    const allowedFields = ['feature', 'description', 'test_to_perform', 'test_status', 'result', 'issue', 'note', 'sort_order'];
+    const allowedFields = ['feature', 'description', 'test_to_perform', 'test_status', 'result', 'issue', 'note', 'sort_order', 'category'];
     const fieldMap = {
       testToPerform: 'test_to_perform',
       testStatus: 'test_status',
@@ -246,8 +247,8 @@ router.post('/import', (req, res) => {
 
     const importAll = db.transaction(() => {
       const insert = db.prepare(`
-        INSERT INTO test_cases (build_id, feature, description, test_to_perform, test_status, result, issue, note, sort_order)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO test_cases (build_id, feature, description, test_to_perform, test_status, result, issue, note, sort_order, category)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       let order = maxOrder.max_order + 1;
@@ -263,7 +264,8 @@ router.post('/import', (req, res) => {
           tc.result || 'Not Run',
           tc.issue || null,
           tc.note || null,
-          order++
+          order++,
+          tc.category || 'General'
         );
         imported.push(result.lastInsertRowid);
       }

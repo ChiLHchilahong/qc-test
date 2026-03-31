@@ -22,6 +22,18 @@ const TEST_STATUS_CFG = {
   No: { bg: '#ffe4e6', color: '#be123c' },
 };
 const TEST_STATUS_OPTIONS = Object.keys(TEST_STATUS_CFG);
+const CATEGORY_OPTIONS = ['General', 'Economy', 'Progression', 'Monetization', 'Performance', 'UI/UX', 'Social', 'Notification', 'Regression'];
+const CATEGORY_COLOR = {
+  Economy:      'bg-yellow-100 text-yellow-800',
+  Progression:  'bg-blue-100 text-blue-800',
+  Monetization: 'bg-purple-100 text-purple-800',
+  Performance:  'bg-orange-100 text-orange-800',
+  'UI/UX':      'bg-pink-100 text-pink-800',
+  Social:       'bg-teal-100 text-teal-800',
+  Notification: 'bg-indigo-100 text-indigo-800',
+  Regression:   'bg-red-100 text-red-800',
+  General:      'bg-gray-100 text-gray-700',
+};
 const LS_GEMINI_API_KEY = 'qc:gemini-api-key';
 const LS_AI_PROMPT = 'qc:ai-prompt';
 
@@ -1094,6 +1106,7 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
     { key: 'feature',     label: 'Feature (A)',               w: 120 },
     { key: 'description', label: 'Test Case Description (B)', w: 200 },
     { key: 'testToPerform', label: 'Test to Perform (C)',     w: 220 },
+    { key: 'category',    label: 'Category',  type: 'category', w: 110 },
     { key: 'test_status', label: '?Test (D)', type: 'status', w: 100 },
     { key: 'result',      label: 'Result (E)', type: 'result', w: 120 },
     { key: 'issue',       label: 'Issue (F)',  type: 'issue',  w: 110 },
@@ -1394,6 +1407,23 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
                               >
                                 {resultOption}
                               </option>
+                            ))}
+                          </select>
+                        </td>
+                      );
+                    }
+
+                    if (col.type === 'category') {
+                      const cat = tc.category || 'General';
+                      return (
+                        <td key={col.key} className="px-3 py-2">
+                          <select
+                            value={cat}
+                            onChange={(e) => updateTestCase(tc.id, { category: e.target.value }).then(fetchAll)}
+                            className={'border-0 rounded px-2 py-1 text-xs font-semibold cursor-pointer ' + (CATEGORY_COLOR[cat] || CATEGORY_COLOR.General)}
+                          >
+                            {CATEGORY_OPTIONS.map((opt) => (
+                              <option key={opt} value={opt}>{opt}</option>
                             ))}
                           </select>
                         </td>

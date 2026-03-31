@@ -86,6 +86,29 @@ export const importTestCases = async (buildId, rows) => {
   return res.data;
 };
 
+// ─── BUGS ─────────────────────────
+export const getBugs = async (filters = {}) => {
+  const res = await api.get('/api/bugs', { params: filters });
+  return res.data;
+};
+
+export const createBug = async (data) => {
+  const res = await api.post('/api/bugs', data);
+  notifyDataChanged();
+  return res.data;
+};
+
+export const updateBug = async (id, data) => {
+  const res = await api.put(`/api/bugs/${id}`, data);
+  notifyDataChanged();
+  return res.data;
+};
+
+export const deleteBug = async (id) => {
+  await api.delete(`/api/bugs/${id}`);
+  notifyDataChanged();
+};
+
 // ─── PROJECT ─────────────────────────
 export const getProjects = async () => {
   const res = await api.get('/api/projects');

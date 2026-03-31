@@ -120,11 +120,51 @@ db.prepare('UPDATE test_plans SET min_pass_rate = 80 WHERE min_pass_rate IS NULL
 db.prepare('UPDATE test_plans SET max_failed = 0 WHERE max_failed IS NULL').run();
 db.prepare('UPDATE test_plans SET max_not_run_percent = 20 WHERE max_not_run_percent IS NULL').run();
 
+// ── Bugs table ───────────────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS bugs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    steps_to_reproduce TEXT DEFAULT '',
+    expected_result TEXT DEFAULT '',
+    actual_result TEXT DEFAULT '',
+    severity TEXT DEFAULT 'Major',
+    priority TEXT DEFAULT 'Medium',
+    status TEXT DEFAULT 'Open',
+    environment TEXT DEFAULT '',
+    project_id INTEGER,
+    version_id INTEGER,
+    build_id INTEGER,
+    test_case_id INTEGER,
+    reported_by TEXT DEFAULT '',
+    assigned_to TEXT DEFAULT '',
+    owner_key TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
+    FOREIGN KEY (version_id) REFERENCES versions(id) ON DELETE SET NULL,
+    FOREIGN KEY (build_id) REFERENCES builds(id) ON DELETE SET NULL,
+    FOREIGN KEY (test_case_id) REFERENCES test_cases(id) ON DELETE SET NULL
+  );
+`);
+
+// ── Migration: category column on test_cases ─────────────────────────
+const testCaseColumns = db.prepare('PRAGMA table_info(test_cases)').all();
+const hasCategory = testCaseColumns.some((c) => c.name === 'category');
+if (!hasCategory) {
+  db.exec("ALTER TABLE test_cases ADD COLUMN category TEXT DEFAULT 'General'");
+}
+
 db.exec('CREATE INDEX IF NOT EXISTS idx_projects_owner_key ON projects(owner_key)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_test_plans_owner_key ON test_plans(owner_key)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_test_plans_project_id ON test_plans(project_id)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_test_plans_version_id ON test_plans(version_id)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_test_plans_status ON test_plans(status)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_bugs_owner_key ON bugs(owner_key)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_bugs_project_id ON bugs(project_id)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_bugs_build_id ON bugs(build_id)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_bugs_status ON bugs(status)');
 
 const defaultUsername = process.env.DEFAULT_LOGIN_USERNAME || 'admin';
 const defaultPassword = process.env.DEFAULT_LOGIN_PASSWORD || '123456';
