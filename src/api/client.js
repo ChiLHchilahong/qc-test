@@ -145,6 +145,7 @@ export const getBuilds = async (versionId) => {
     passedCases: b.passed ?? 0,
     failedCases: b.failed ?? 0,
     warningCases: b.warning ?? 0,
+    inProgressCases: b.in_progress ?? 0,
     notRunCases: b.not_run ?? 0,
     createdAt: b.created_at,
   }));

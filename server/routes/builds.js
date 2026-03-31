@@ -18,10 +18,31 @@ router.get('/', (req, res) => {
           SELECT
             b.*,
             COUNT(tc.id) AS total,
-            SUM(CASE WHEN tc.result = 'Passed' THEN 1 ELSE 0 END) AS passed,
-            SUM(CASE WHEN tc.result = 'Failed' THEN 1 ELSE 0 END) AS failed,
-            SUM(CASE WHEN tc.result = 'Warning' THEN 1 ELSE 0 END) AS warning,
-            SUM(CASE WHEN tc.result = 'Not Run' THEN 1 ELSE 0 END) AS not_run,
+            SUM(CASE
+              WHEN lower(trim(coalesce(tc.result, ''))) IN ('passed', 'pass') THEN 1
+              ELSE 0
+            END) AS passed,
+            SUM(CASE
+              WHEN lower(trim(coalesce(tc.result, ''))) IN ('failed', 'fail') THEN 1
+              ELSE 0
+            END) AS failed,
+            SUM(CASE
+              WHEN lower(trim(coalesce(tc.result, ''))) IN ('warning', 'warn') THEN 1
+              ELSE 0
+            END) AS warning,
+            SUM(CASE
+              WHEN lower(trim(coalesce(tc.result, ''))) IN ('in progress', 'in-progress', 'in_progress', 'inprogress') THEN 1
+              ELSE 0
+            END) AS in_progress,
+            SUM(CASE
+              WHEN tc.id IS NOT NULL AND lower(trim(coalesce(tc.result, ''))) NOT IN (
+                'passed', 'pass',
+                'failed', 'fail',
+                'warning', 'warn',
+                'in progress', 'in-progress', 'in_progress', 'inprogress'
+              ) THEN 1
+              ELSE 0
+            END) AS not_run,
             SUM(CASE WHEN tc.test_status = 'Yes' THEN 1 ELSE 0 END) AS yes_count,
             SUM(CASE WHEN tc.test_status = 'To Do' THEN 1 ELSE 0 END) AS todo_count
           FROM builds b
@@ -34,10 +55,31 @@ router.get('/', (req, res) => {
           SELECT
             b.*,
             COUNT(tc.id) AS total,
-            SUM(CASE WHEN tc.result = 'Passed' THEN 1 ELSE 0 END) AS passed,
-            SUM(CASE WHEN tc.result = 'Failed' THEN 1 ELSE 0 END) AS failed,
-            SUM(CASE WHEN tc.result = 'Warning' THEN 1 ELSE 0 END) AS warning,
-            SUM(CASE WHEN tc.result = 'Not Run' THEN 1 ELSE 0 END) AS not_run,
+            SUM(CASE
+              WHEN lower(trim(coalesce(tc.result, ''))) IN ('passed', 'pass') THEN 1
+              ELSE 0
+            END) AS passed,
+            SUM(CASE
+              WHEN lower(trim(coalesce(tc.result, ''))) IN ('failed', 'fail') THEN 1
+              ELSE 0
+            END) AS failed,
+            SUM(CASE
+              WHEN lower(trim(coalesce(tc.result, ''))) IN ('warning', 'warn') THEN 1
+              ELSE 0
+            END) AS warning,
+            SUM(CASE
+              WHEN lower(trim(coalesce(tc.result, ''))) IN ('in progress', 'in-progress', 'in_progress', 'inprogress') THEN 1
+              ELSE 0
+            END) AS in_progress,
+            SUM(CASE
+              WHEN tc.id IS NOT NULL AND lower(trim(coalesce(tc.result, ''))) NOT IN (
+                'passed', 'pass',
+                'failed', 'fail',
+                'warning', 'warn',
+                'in progress', 'in-progress', 'in_progress', 'inprogress'
+              ) THEN 1
+              ELSE 0
+            END) AS not_run,
             SUM(CASE WHEN tc.test_status = 'Yes' THEN 1 ELSE 0 END) AS yes_count,
             SUM(CASE WHEN tc.test_status = 'To Do' THEN 1 ELSE 0 END) AS todo_count
           FROM builds b

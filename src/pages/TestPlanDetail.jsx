@@ -87,6 +87,7 @@ export default function TestPlanDetail() {
     const project = projects.find((p) => String(p.id) === String(form.projectId));
     return project?.name || plan?.project_name || '-';
   }, [projects, form.projectId, plan]);
+  const executionSummary = plan?.execution_summary || null;
 
   const handleProjectChange = async (value) => {
     setForm((prev) => ({ ...prev, projectId: value, versionId: '' }));
@@ -342,6 +343,39 @@ export default function TestPlanDetail() {
         </div>
 
         <aside className="space-y-4 rounded-xl border border-gray-200 bg-white p-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <h2 className="text-base font-semibold text-slate-900">Execution Summary</h2>
+            {form.versionId ? (
+              <>
+                <p className="mt-1 text-xs text-slate-600">Live numbers from the linked version checklist.</p>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <div className="rounded-lg bg-white p-2"><span className="text-slate-500">Builds</span><div className="font-semibold text-slate-900">{executionSummary?.build_count ?? 0}</div></div>
+                  <div className="rounded-lg bg-white p-2"><span className="text-slate-500">Total TC</span><div className="font-semibold text-slate-900">{executionSummary?.total ?? 0}</div></div>
+                  <div className="rounded-lg bg-white p-2"><span className="text-slate-500">Passed</span><div className="font-semibold text-emerald-700">{executionSummary?.passed ?? 0}</div></div>
+                  <div className="rounded-lg bg-white p-2"><span className="text-slate-500">Failed</span><div className="font-semibold text-rose-700">{executionSummary?.failed ?? 0}</div></div>
+                  <div className="rounded-lg bg-white p-2"><span className="text-slate-500">Warning</span><div className="font-semibold text-orange-700">{executionSummary?.warning ?? 0}</div></div>
+                  <div className="rounded-lg bg-white p-2"><span className="text-slate-500">Not Run</span><div className="font-semibold text-slate-700">{executionSummary?.not_run ?? 0}</div></div>
+                  <div className="rounded-lg bg-white p-2"><span className="text-slate-500">In Progress</span><div className="font-semibold text-amber-700">{executionSummary?.in_progress ?? 0}</div></div>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                  <div className="rounded-lg bg-white p-2"><span className="text-slate-500">Pass Rate</span><div className="font-bold text-indigo-700">{executionSummary?.pass_rate ?? 0}%</div></div>
+                  <div className="rounded-lg bg-white p-2"><span className="text-slate-500">Execution</span><div className="font-bold text-indigo-700">{executionSummary?.execution_rate ?? 0}%</div></div>
+                </div>
+                <p className="mt-2 text-[11px] text-slate-500">
+                  Total = Passed + Failed + Warning + In Progress + Not Run
+                </p>
+                <Link
+                  to={`/projects/${form.projectId}/versions/${form.versionId}`}
+                  className="mt-3 inline-block text-xs font-semibold text-blue-700 hover:text-blue-800"
+                >
+                  Open linked version
+                </Link>
+              </>
+            ) : (
+              <p className="mt-2 text-xs text-slate-600">Link this plan to a version to see execution summary.</p>
+            )}
+          </div>
+
           <h2 className="text-lg font-semibold text-gray-900">Sign-off</h2>
           <p className="text-sm text-gray-600">Finalize this test plan when quality gate is complete.</p>
 

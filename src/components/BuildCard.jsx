@@ -13,9 +13,13 @@ const BuildCard = ({ build, onCopy, onRename, onDelete }) => {
     ? Math.round((build.passedCases / build.totalCases) * 100)
     : 0;
 
-  const statusText = build.notRunCases != null
-    ? `Not Run: ${build.notRunCases}`
-    : '';
+  const statusBadges = [
+    { label: 'Passed', value: build.passedCases ?? 0, cls: 'text-emerald-700' },
+    { label: 'Failed', value: build.failedCases ?? 0, cls: 'text-rose-700' },
+    { label: 'Warning', value: build.warningCases ?? 0, cls: 'text-orange-700' },
+    { label: 'In Progress', value: build.inProgressCases ?? 0, cls: 'text-amber-700' },
+    { label: 'Not Run', value: build.notRunCases ?? 0, cls: 'text-slate-700' },
+  ];
 
   return (
     <div className="rounded-[16px] border border-[#d8e0ec] bg-[#f8fafc] p-4 transition-shadow hover:shadow-sm sm:p-6 max-[393px]:p-3.5">
@@ -40,9 +44,13 @@ const BuildCard = ({ build, onCopy, onRename, onDelete }) => {
         <p className="text-[20px] font-bold leading-none text-[#0d1d3b] sm:text-[28px] max-[393px]:text-[18px]">{build.totalCases}</p>
         <p className="text-[15px] font-semibold leading-none text-[#556987] sm:text-lg max-[393px]:text-[14px]">test cases</p>
       </div>
-      {statusText && (
-        <p className="mt-2 text-xs text-[#8b9ab0]">{statusText}</p>
-      )}
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+        {statusBadges.map((s) => (
+          <span key={s.label} className={s.cls}>
+            {s.label}: {s.value}
+          </span>
+        ))}
+      </div>
 
       {/* Actions */}
       <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-[#e2e8f0] pt-4">

@@ -27,6 +27,67 @@ function ensureOwnedVersion(scope, versionId) {
       `).get(versionId, scope.ownerKey);
 }
 
+function buildExecutionSummary(versionId) {
+  if (!versionId) return null;
+
+  const stats = db.prepare(`
+    SELECT
+      COUNT(DISTINCT b.id) AS build_count,
+      COUNT(tc.id) AS total,
+      SUM(CASE
+        WHEN lower(trim(coalesce(tc.result, ''))) IN ('passed', 'pass') THEN 1
+        ELSE 0
+      END) AS passed,
+      SUM(CASE
+        WHEN lower(trim(coalesce(tc.result, ''))) IN ('failed', 'fail') THEN 1
+        ELSE 0
+      END) AS failed,
+      SUM(CASE
+        WHEN lower(trim(coalesce(tc.result, ''))) IN ('warning', 'warn') THEN 1
+        ELSE 0
+      END) AS warning,
+      SUM(CASE
+        WHEN lower(trim(coalesce(tc.result, ''))) IN ('in progress', 'in-progress', 'in_progress', 'inprogress') THEN 1
+        ELSE 0
+      END) AS in_progress,
+      SUM(CASE
+        WHEN tc.id IS NOT NULL AND lower(trim(coalesce(tc.result, ''))) NOT IN (
+          'passed', 'pass',
+          'failed', 'fail',
+          'warning', 'warn',
+          'in progress', 'in-progress', 'in_progress', 'inprogress'
+        ) THEN 1
+        ELSE 0
+      END) AS not_run
+    FROM builds b
+    LEFT JOIN test_cases tc ON tc.build_id = b.id
+    WHERE b.version_id = ?
+  `).get(versionId);
+
+  const total = Number(stats?.total || 0);
+  const passed = Number(stats?.passed || 0);
+  const failed = Number(stats?.failed || 0);
+  const warning = Number(stats?.warning || 0);
+  const inProgress = Number(stats?.in_progress || 0);
+  const notRun = Number(stats?.not_run || 0);
+  const executed = total - notRun;
+  const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
+  const executionRate = total > 0 ? Math.round((executed / total) * 100) : 0;
+
+  return {
+    build_count: Number(stats?.build_count || 0),
+    total,
+    passed,
+    failed,
+    warning,
+    in_progress: inProgress,
+    not_run: notRun,
+    executed,
+    pass_rate: passRate,
+    execution_rate: executionRate,
+  };
+}
+
 // GET / - List test plans with optional filters
 router.get('/', (req, res) => {
   try {
@@ -101,7 +162,8 @@ router.get('/:id', (req, res) => {
       return res.status(404).json({ error: 'Test plan not found' });
     }
 
-    res.json(row);
+    const executionSummary = buildExecutionSummary(row.version_id);
+    res.json({ ...row, execution_summary: executionSummary });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
