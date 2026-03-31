@@ -128,15 +128,23 @@ export default function VersionDetail() {
       {/* Header */}
       <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between max-[393px]:gap-2">
         <h1 className="text-2xl font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b] sm:text-3xl md:text-4xl max-[393px]:text-[26px]">{displayVersionName}</h1>
-        <button
-          onClick={() => {
-            setNameInput('');
-            setShowCreateModal(true);
-          }}
-          className="w-full rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#4f16df] px-4 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-95 sm:w-auto sm:px-5 sm:py-3 sm:text-base max-[393px]:py-2"
-        >
-          + New Build
-        </button>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <button
+            onClick={() => navigate(`/test-plans?projectId=${projectId}&versionId=${versionId}&create=1`)}
+            className="w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-bold text-indigo-700 transition-colors hover:bg-indigo-100 sm:w-auto sm:px-5 sm:py-3 sm:text-base max-[393px]:py-2"
+          >
+            + Test Plan
+          </button>
+          <button
+            onClick={() => {
+              setNameInput('');
+              setShowCreateModal(true);
+            }}
+            className="w-full rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#4f16df] px-4 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-95 sm:w-auto sm:px-5 sm:py-3 sm:text-base max-[393px]:py-2"
+          >
+            + New Build
+          </button>
+        </div>
       </div>
       <p className="mb-6 text-base font-medium text-[#5f708a] sm:mb-8 sm:text-lg max-[393px]:text-sm">Select a build to open its checklist</p>
 

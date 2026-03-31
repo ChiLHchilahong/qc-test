@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   getTestCases, getProjects, getVersions, getBuilds,
   createTestCase, updateTestCase, deleteTestCase,
@@ -682,6 +682,7 @@ function ReportModal({ testCases, meta, onClose }) {
 // ─── Main Component ───────────────────────────────────────
 export default function BuildChecklist() {
   const { projectId, versionId, buildId } = useParams();
+  const navigate = useNavigate();
   const [testCases, setTestCases] = useState([]);
   const [projectName, setProjectName] = useState('');
   const [versionName, setVersionName] = useState('');
@@ -1138,6 +1139,15 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
         </button>
         <button onClick={handleOpenJira} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium text-sm">Send to Jira</button>
         <button onClick={() => setShowReport(true)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium text-sm">📊 Report</button>
+        <button
+          onClick={() => {
+            const suggestedName = `Plan - ${displayBuildName}`;
+            navigate(`/test-plans?projectId=${projectId}&versionId=${versionId}&create=1&name=${encodeURIComponent(suggestedName)}`);
+          }}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium text-sm"
+        >
+          + Test Plan
+        </button>
         <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm">+ Add Test Case</button>
         <button onClick={() => exportToExcel(testCases, meta)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium text-sm">📊 Export Excel</button>
         <button onClick={() => exportCSV(testCases)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm">📁 Export CSV</button>

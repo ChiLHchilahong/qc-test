@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   getProjects,
   getVersions,
@@ -24,6 +24,7 @@ const initialForm = {
 
 export default function TestPlans() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [plans, setPlans] = useState([]);
   const [projects, setProjects] = useState([]);
   const [versions, setVersions] = useState([]);
@@ -37,6 +38,11 @@ export default function TestPlans() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [form, setForm] = useState(initialForm);
+
+  const queryProjectId = searchParams.get('projectId') || '';
+  const queryVersionId = searchParams.get('versionId') || '';
+  const queryName = searchParams.get('name') || '';
+  const queryCreate = searchParams.get('create') === '1';
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -60,6 +66,12 @@ export default function TestPlans() {
   }, [fetchData]);
 
   useEffect(() => {
+    if (queryProjectId) {
+      setProjectFilter(queryProjectId);
+    }
+  }, [queryProjectId]);
+
+  useEffect(() => {
     if (!form.projectId) {
       setVersions([]);
       return;
@@ -68,6 +80,24 @@ export default function TestPlans() {
       .then((rows) => setVersions(Array.isArray(rows) ? rows : []))
       .catch(() => setVersions([]));
   }, [form.projectId]);
+
+  useEffect(() => {
+    if (!queryCreate) return;
+
+    setForm((prev) => ({
+      ...prev,
+      projectId: queryProjectId || prev.projectId,
+      versionId: queryVersionId || prev.versionId,
+      name: queryName || prev.name,
+    }));
+    setShowCreateModal(true);
+
+    // Clear one-time creation params so modal does not auto-open again on refresh/revisit.
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('create');
+    nextParams.delete('name');
+    setSearchParams(nextParams, { replace: true });
+  }, [queryCreate, queryProjectId, queryVersionId, queryName, searchParams, setSearchParams]);
 
   const projectMap = useMemo(() => {
     const map = new Map();
@@ -228,6 +258,8 @@ export default function TestPlans() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         title="Create Test Plan"
+        onConfirm={handleCreate}
+        confirmText="Create"
       >
         <div className="space-y-3">
           <div>
@@ -324,20 +356,6 @@ export default function TestPlans() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              onClick={() => setShowCreateModal(false)}
-              className="rounded-lg border border-gray-300 px-4 py-2 font-medium text-gray-700"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleCreate}
-              className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
-            >
-              Create
-            </button>
-          </div>
         </div>
       </Modal>
 
@@ -345,25 +363,14 @@ export default function TestPlans() {
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         title="Delete Test Plan"
+        onConfirm={handleDelete}
+        confirmText="Delete"
+        confirmVariant="danger"
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
             Delete <span className="font-semibold text-gray-900">{selectedPlan?.name || 'this plan'}</span>? This action cannot be undone.
           </p>
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={() => setShowDeleteModal(false)}
-              className="rounded-lg border border-gray-300 px-4 py-2 font-medium text-gray-700"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleDelete}
-              className="rounded-lg bg-rose-600 px-4 py-2 font-medium text-white hover:bg-rose-700"
-            >
-              Delete
-            </button>
-          </div>
         </div>
       </Modal>
     </div>
