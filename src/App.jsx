@@ -13,6 +13,8 @@ import TestPlanDetail from './pages/TestPlanDetail';
 import Profile from './pages/Profile';
 import Login from './pages/Login';
 import Bugs from './pages/Bugs';
+import BugDetail from './pages/BugDetail';
+import Activity from './pages/Activity';
 
 function App() {
   return (
@@ -37,6 +39,8 @@ function App() {
               <Route path="/test-plans" element={<TestPlans />} />
               <Route path="/test-plans/:planId" element={<TestPlanDetail />} />
               <Route path="/bugs" element={<Bugs />} />
+              <Route path="/bugs/:bugId" element={<BugDetail />} />
+              <Route path="/activity" element={<Activity />} />
               <Route path="/profile" element={<Profile />} />
             </Route>
           </Route>

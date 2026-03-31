@@ -92,6 +92,21 @@ export const getBugs = async (filters = {}) => {
   return res.data;
 };
 
+export const getBugsPaged = async (filters = {}, page = 1, limit = 25) => {
+  const res = await api.get('/api/bugs', { params: { ...filters, page, limit } });
+  return res.data; // { data, total, page, limit, totalPages }
+};
+
+export const getBugStats = async (filters = {}) => {
+  const res = await api.get('/api/bugs/stats', { params: filters });
+  return res.data; // { Open: N, Fixed: N, ... }
+};
+
+export const getBugById = async (id) => {
+  const res = await api.get(`/api/bugs/${id}`);
+  return res.data;
+};
+
 export const createBug = async (data) => {
   const res = await api.post('/api/bugs', data);
   notifyDataChanged();
@@ -112,6 +127,18 @@ export const deleteBug = async (id) => {
 export const bulkUpdateBugStatus = async (ids, status, resolution_note) => {
   const res = await api.post('/api/bugs/bulk-status', { ids, status, resolution_note });
   notifyDataChanged();
+  return res.data;
+};
+
+// ─── SEARCH ──────────────────────────
+export const globalSearch = async (q) => {
+  const res = await api.get('/api/search', { params: { q } });
+  return res.data;
+};
+
+// ─── ACTIVITY ────────────────────────
+export const getActivity = async (params = {}) => {
+  const res = await api.get('/api/activity', { params });
   return res.data;
 };
 

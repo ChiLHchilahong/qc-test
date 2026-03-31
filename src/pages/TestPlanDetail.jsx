@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import {
   getProjects,
   getVersions,
@@ -7,6 +8,7 @@ import {
   updateTestPlan,
   signOffTestPlan,
   deleteTestPlan,
+  getBugs,
 } from '../api/client';
 import Modal from '../components/Modal';
 
@@ -24,6 +26,8 @@ export default function TestPlanDetail() {
   const [error, setError] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [signOffNote, setSignOffNote] = useState('');
+  const [linkedBugs, setLinkedBugs] = useState([]);
+  const [bugsLoading, setBugsLoading] = useState(false);
 
   const [form, setForm] = useState({
     name: '',
@@ -78,6 +82,17 @@ export default function TestPlanDetail() {
         maxNotRunPercent: Number(planData?.max_not_run_percent ?? 20),
       });
       setSignOffNote(planData?.sign_off_note || '');
+
+      // Load linked bugs
+      setBugsLoading(true);
+      try {
+        const bugRows = await getBugs({ test_plan_id: planId });
+        setLinkedBugs(Array.isArray(bugRows) ? bugRows : []);
+      } catch (_) {
+        setLinkedBugs([]);
+      } finally {
+        setBugsLoading(false);
+      }
     } catch (err) {
       setError(err?.message || 'Failed to load test plan detail');
     } finally {
@@ -155,6 +170,67 @@ export default function TestPlanDetail() {
     navigate('/test-plans', { replace: true });
   };
 
+  const handleExportExcel = () => {
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: Plan Info
+    const infoRows = [
+      ['Field', 'Value'],
+      ['Plan Name', plan?.name || ''],
+      ['Project', projectName],
+      ['Version', versions.find((v) => String(v.id) === form.versionId)?.name || ''],
+      ['Status', form.status],
+      ['Assignee', form.assignee],
+      ['Planned Start', form.plannedStartDate || ''],
+      ['Planned End', form.plannedEndDate || ''],
+      ['Actual End', form.actualEndDate || ''],
+      ['Objective', form.objective],
+      ['Scope In', form.scopeIn],
+      ['Scope Out', form.scopeOut],
+      ['Entry Criteria', form.entryCriteria],
+      ['Exit Criteria', form.exitCriteria],
+      ['Min Pass Rate (%)', form.minPassRate],
+      ['Max Failed', form.maxFailed],
+      ['Max Not Run (%)', form.maxNotRunPercent],
+    ];
+    const wsInfo = XLSX.utils.aoa_to_sheet(infoRows);
+    XLSX.utils.book_append_sheet(wb, wsInfo, 'Plan Info');
+
+    // Sheet 2: Execution Summary
+    if (executionSummary) {
+      const summaryRows = [
+        ['Metric', 'Value'],
+        ['Builds', executionSummary.build_count ?? 0],
+        ['Total Test Cases', executionSummary.total ?? 0],
+        ['Passed', executionSummary.passed ?? 0],
+        ['Failed', executionSummary.failed ?? 0],
+        ['Warning', executionSummary.warning ?? 0],
+        ['In Progress', executionSummary.in_progress ?? 0],
+        ['Not Run', executionSummary.not_run ?? 0],
+        ['Pass Rate (%)', executionSummary.pass_rate ?? 0],
+        ['Execution Rate (%)', executionSummary.execution_rate ?? 0],
+      ];
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Execution Summary');
+    }
+
+    // Sheet 3: Bugs
+    if (linkedBugs.length > 0) {
+      const bugHeaders = ['#', 'Title', 'Severity', 'Priority', 'Status', 'Assigned To', 'Reported By', 'Resolution Note', 'Created At'];
+      const bugRows = linkedBugs.map((b) => [
+        b.id, b.title, b.severity, b.priority, b.status,
+        b.assigned_to || '', b.reported_by || '',
+        b.resolution_note || '',
+        b.created_at ? String(b.created_at).slice(0, 10) : '',
+      ]);
+      const wsBugs = XLSX.utils.aoa_to_sheet([bugHeaders, ...bugRows]);
+      XLSX.utils.book_append_sheet(wb, wsBugs, 'Linked Bugs');
+    }
+
+    const fileName = `TestPlan_${(plan?.name || 'export').replace(/[^a-zA-Z0-9_-]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -186,6 +262,12 @@ export default function TestPlanDetail() {
         </div>
         <div className="flex items-center gap-2">
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{form.status}</span>
+          <button
+            onClick={handleExportExcel}
+            className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"
+          >
+            ↓ Export Excel
+          </button>
           <button
             onClick={() => setShowDeleteModal(true)}
             className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
@@ -448,6 +530,31 @@ export default function TestPlanDetail() {
           <h2 className="text-lg font-semibold text-gray-900">Sign-off</h2>
           <p className="text-sm text-gray-600">Finalize this test plan when quality gate is complete.</p>
 
+          {/* Bug Summary */}
+          {linkedBugs.length > 0 && (
+            <div className="rounded-xl border border-red-100 bg-red-50/60 p-3">
+              <h3 className="text-sm font-semibold text-red-900 mb-2">Bug Summary</h3>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                {['Open', 'In Progress', 'Fixed', 'Closed', 'Wont Fix'].map((s) => {
+                  const cnt = linkedBugs.filter((b) => b.status === s).length;
+                  if (!cnt) return null;
+                  return (
+                    <div key={s} className="rounded-lg bg-white p-2">
+                      <span className="text-slate-500 text-xs">{s}</span>
+                      <div className={`font-bold text-sm ${s === 'Open' ? 'text-red-600' : s === 'Fixed' ? 'text-green-600' : 'text-slate-700'}`}>{cnt}</div>
+                    </div>
+                  );
+                })}
+                <div className="rounded-lg bg-white p-2 col-span-2">
+                  <span className="text-slate-500 text-xs">Open / Total</span>
+                  <div className="font-bold text-sm text-slate-800">
+                    {linkedBugs.filter((b) => b.status === 'Open').length} / {linkedBugs.length}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">
             <p><span className="font-medium text-gray-700">Signed by:</span> {plan?.sign_off_by || '-'}</p>
             <p><span className="font-medium text-gray-700">Last update:</span> {plan?.updated_at || '-'}</p>
@@ -474,6 +581,67 @@ export default function TestPlanDetail() {
             <p className="text-xs text-amber-700">Sign-off is enabled only when readiness is READY.</p>
           ) : null}
         </aside>
+      </section>
+
+      {/* Linked Bugs */}
+      <section className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold text-gray-900">
+            Linked Bugs
+            {linkedBugs.length > 0 && (
+              <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">{linkedBugs.length}</span>
+            )}
+          </h2>
+          <Link
+            to={`/bugs`}
+            className="text-xs font-medium text-blue-600 hover:text-blue-800"
+          >
+            View all bugs →
+          </Link>
+        </div>
+        {bugsLoading ? (
+          <p className="text-sm text-gray-400">Loading...</p>
+        ) : linkedBugs.length === 0 ? (
+          <p className="text-sm text-gray-400">No bugs linked to this test plan yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 text-xs font-semibold uppercase text-gray-500">
+                  <th className="pb-2 text-left w-10">#</th>
+                  <th className="pb-2 text-left">Title</th>
+                  <th className="pb-2 text-left w-24">Severity</th>
+                  <th className="pb-2 text-left w-24">Priority</th>
+                  <th className="pb-2 text-left w-28">Status</th>
+                  <th className="pb-2 text-left w-28">Assigned To</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {linkedBugs.map((bug) => (
+                  <tr key={bug.id} className="hover:bg-gray-50">
+                    <td className="py-1.5 text-gray-400 text-xs">{bug.id}</td>
+                    <td className="py-1.5">
+                      <Link to={`/bugs/${bug.id}`} className="font-medium text-gray-800 hover:text-blue-600 hover:underline">
+                        {bug.title}
+                      </Link>
+                    </td>
+                    <td className="py-1.5 text-xs text-gray-600">{bug.severity}</td>
+                    <td className="py-1.5 text-xs text-gray-600">{bug.priority}</td>
+                    <td className="py-1.5">
+                      <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                        bug.status === 'Open' ? 'bg-red-100 text-red-700' :
+                        bug.status === 'Fixed' ? 'bg-green-100 text-green-700' :
+                        bug.status === 'Closed' ? 'bg-gray-100 text-gray-600' :
+                        'bg-yellow-100 text-yellow-700'
+                      }`}>{bug.status}</span>
+                    </td>
+                    <td className="py-1.5 text-xs text-gray-600">{bug.assigned_to || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <Modal

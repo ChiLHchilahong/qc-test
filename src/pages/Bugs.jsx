@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getBugs, createBug, updateBug, deleteBug, bulkUpdateBugStatus, getProjects, getVersions, getTestPlans } from '../api/client';
+import { Link } from 'react-router-dom';
+import { getBugsPaged, getBugs, getBugStats, createBug, updateBug, deleteBug, bulkUpdateBugStatus, getProjects, getVersions, getTestPlans } from '../api/client';
 import Modal from '../components/Modal';
+import Pagination from '../components/Pagination';
 
 const SEVERITY_OPTIONS = ['Critical', 'Major', 'Minor', 'Trivial'];
 const PRIORITY_OPTIONS = ['High', 'Medium', 'Low'];
@@ -43,6 +45,7 @@ const EMPTY_FORM = {
   reported_by: '',
   assigned_to: '',
   resolution_note: '',
+  test_plan_id: '',
 };
 
 // ─── CSV Export helper ─────────────────────────────────────
@@ -86,6 +89,23 @@ export default function Bugs() {
   const [bulkResolution, setBulkResolution]   = useState('');
   const [bulking, setBulking]                 = useState(false);
 
+  // Pagination
+  const [page, setPage]           = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalBugs, setTotalBugs] = useState(0);
+  const PAGE_LIMIT = 25;
+
+  // Global stats (all pages)
+  const [stats, setStats] = useState({});
+
+  const fetchStats = useCallback(async () => {
+    const filters = {};
+    if (filterProject) filters.project_id = filterProject;
+    if (filterVersion) filters.version_id = filterVersion;
+    const data = await getBugStats(filters).catch(() => ({}));
+    setStats(data || {});
+  }, [filterProject, filterVersion]);
+
   // Modals
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState(null);   // bug being edited
@@ -93,7 +113,7 @@ export default function Bugs() {
   const [form, setForm]             = useState(EMPTY_FORM);
   const [saving, setSaving]         = useState(false);
 
-  const fetchBugs = useCallback(async () => {
+  const fetchBugs = useCallback(async (targetPage = page) => {
     setLoading(true);
     try {
       const filters = {};
@@ -101,13 +121,16 @@ export default function Bugs() {
       if (filterVersion) filters.version_id = filterVersion;
       if (filterStatus)  filters.status = filterStatus;
       if (filterSeverity)filters.severity = filterSeverity;
-      const data = await getBugs(filters);
-      setBugs(Array.isArray(data) ? data : []);
+      const result = await getBugsPaged(filters, targetPage, PAGE_LIMIT);
+      setBugs(Array.isArray(result.data) ? result.data : []);
+      setTotalPages(result.totalPages || 1);
+      setTotalBugs(result.total || 0);
+      setPage(result.page || 1);
       setSelected(new Set());
     } finally {
       setLoading(false);
     }
-  }, [filterProject, filterVersion, filterStatus, filterSeverity]);
+  }, [filterProject, filterVersion, filterStatus, filterSeverity, page]);
 
   useEffect(() => {
     getProjects().then((data) => setProjects(Array.isArray(data) ? data : []));
@@ -132,7 +155,13 @@ export default function Bugs() {
     }
   }, [form.project_id]);
 
-  useEffect(() => { fetchBugs(); }, [fetchBugs]);
+  useEffect(() => { fetchBugs(1); fetchStats(); }, [filterProject, filterVersion, filterStatus, filterSeverity]);
+  // Re-fetch when page changes (but not on filter change — that's handled above)
+  useEffect(() => { fetchBugs(page); }, [page]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) setPage(newPage);
+  };
 
   const openCreate = () => {
     setForm(EMPTY_FORM);
@@ -156,6 +185,7 @@ export default function Bugs() {
       reported_by:         bug.reported_by || '',
       assigned_to:         bug.assigned_to || '',
       resolution_note:     bug.resolution_note || '',
+      test_plan_id:         bug.test_plan_id ? String(bug.test_plan_id) : '',
     });
     setEditTarget(bug);
     setShowCreate(true);
@@ -167,8 +197,9 @@ export default function Bugs() {
     try {
       const payload = {
         ...form,
-        project_id: form.project_id ? Number(form.project_id) : null,
-        version_id: form.version_id ? Number(form.version_id) : null,
+        project_id:   form.project_id   ? Number(form.project_id)   : null,
+        version_id:   form.version_id   ? Number(form.version_id)   : null,
+        test_plan_id: form.test_plan_id ? Number(form.test_plan_id) : null,
       };
       if (editTarget) {
         await updateBug(editTarget.id, payload);
@@ -226,11 +257,6 @@ export default function Bugs() {
   };
 
   // Stats
-  const stats = STATUS_OPTIONS.reduce((acc, s) => {
-    acc[s] = bugs.filter((b) => b.status === s).length;
-    return acc;
-  }, {});
-
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -400,7 +426,7 @@ export default function Bugs() {
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-400">{bug.id}</td>
                     <td className="px-3 py-2">
-                      <div className="text-sm font-medium text-gray-900">{bug.title}</div>
+                      <Link to={`/bugs/${bug.id}`} className="text-sm font-medium text-gray-900 hover:text-blue-600 hover:underline">{bug.title}</Link>
                       {bug.environment && (
                         <div className="text-xs text-gray-400 mt-0.5">env: {bug.environment}</div>
                       )}
@@ -457,6 +483,15 @@ export default function Bugs() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Create / Edit modal */}
+      {/* Pagination */}
+      <div className="flex items-center justify-between px-1">
+        <p className="text-sm text-gray-500">
+          {totalBugs > 0 ? `Showing ${(page - 1) * PAGE_LIMIT + 1}–${Math.min(page * PAGE_LIMIT, totalBugs)} of ${totalBugs} bugs` : ''}
+        </p>
+        <Pagination page={page} totalPages={totalPages} onPageChange={handlePageChange} />
       </div>
 
       {/* Create / Edit modal */}
@@ -536,6 +571,18 @@ export default function Bugs() {
                 {formVersions.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Linked Test Plan</label>
+            <select
+              value={form.test_plan_id}
+              onChange={(e) => setForm((p) => ({ ...p, test_plan_id: e.target.value }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            >
+              <option value="">— None —</option>
+              {testPlans.map((tp) => <option key={tp.id} value={tp.id}>{tp.name}</option>)}
+            </select>
           </div>
 
           <div>

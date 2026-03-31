@@ -175,6 +175,21 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_bugs_project_id ON bugs(project_id)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_bugs_build_id ON bugs(build_id)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_bugs_status ON bugs(status)');
 
+// ── Activity Log table ────────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS activity_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    action TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER,
+    entity_label TEXT DEFAULT '',
+    actor TEXT DEFAULT '',
+    detail TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_log(created_at)');
+
 const defaultUsername = process.env.DEFAULT_LOGIN_USERNAME || 'admin';
 const defaultPassword = process.env.DEFAULT_LOGIN_PASSWORD || '123456';
 const existingDefaultUser = db.prepare('SELECT id FROM users WHERE lower(username) = lower(?)').get(defaultUsername);

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import db from '../db.js';
 import { getOwnerScope } from '../owner-scope.js';
+import { logActivity } from '../activity.js';
 
 const router = Router();
 const VALID_STATUSES = new Set(['Draft', 'Ready', 'In Progress', 'Blocked', 'Ready for Sign-off', 'Closed']);
@@ -586,6 +587,7 @@ router.post('/:id/sign-off', (req, res) => {
     `).run(nextStatus, scope.isGuest ? 'guest' : (scope.username || 'unknown'), String(note || ''), new Date().toISOString(), id);
 
     const updated = db.prepare('SELECT * FROM test_plans WHERE id = ?').get(id);
+    logActivity({ action: 'sign_off', entity_type: 'test_plan', entity_id: id, entity_label: existing.name, actor: req.headers['x-qc-username'] || '', detail: `Status: ${nextStatus}` });
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });

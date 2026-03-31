@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import db from '../db.js';
 import { getOwnerScope } from '../owner-scope.js';
+import { logActivity } from '../activity.js';
 
 const router = Router();
 
@@ -8,11 +9,11 @@ const ALLOWED_SEVERITY = ['Critical', 'Major', 'Minor', 'Trivial'];
 const ALLOWED_PRIORITY = ['High', 'Medium', 'Low'];
 const ALLOWED_STATUS   = ['Open', 'In Progress', 'Fixed', 'Retest', 'Closed'];
 
-// GET / - List bugs (supports ?project_id, ?version_id, ?build_id, ?status, ?severity, ?test_plan_id filters)
+// GET / - List bugs (supports ?project_id, ?version_id, ?build_id, ?status, ?severity, ?test_plan_id, ?page, ?limit filters)
 router.get('/', (req, res) => {
   try {
     const scope = getOwnerScope(req);
-    const { project_id, version_id, build_id, status, severity, test_plan_id } = req.query;
+    const { project_id, version_id, build_id, status, severity, test_plan_id, page, limit } = req.query;
 
     let sql = `
       SELECT b.*,
@@ -40,8 +41,88 @@ router.get('/', (req, res) => {
 
     sql += ' ORDER BY b.id DESC';
 
+    // If page param provided, return paginated response
+    if (page !== undefined) {
+      const pageNum = Math.max(1, parseInt(page) || 1);
+      const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 25));
+      const offset = (pageNum - 1) * limitNum;
+
+      const countSql = `SELECT COUNT(*) AS cnt FROM (${sql}) t`;
+      const total = db.prepare(countSql).get(...params)?.cnt || 0;
+
+      const data = db.prepare(`${sql} LIMIT ? OFFSET ?`).all(...params, limitNum, offset);
+      return res.json({ data, total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) });
+    }
+
     const bugs = db.prepare(sql).all(...params);
     res.json(bugs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /stats - Return per-status bug counts (with optional project_id / version_id filters)
+router.get('/stats', (req, res) => {
+  try {
+    const scope = getOwnerScope(req);
+    const { project_id, version_id } = req.query;
+
+    let sql = `
+      SELECT status, COUNT(*) AS cnt
+      FROM bugs b
+      WHERE 1=1
+    `;
+    const params = [];
+    if (!scope.isAdmin) { sql += ' AND b.owner_key = ?'; params.push(scope.ownerKey); }
+    if (project_id) { sql += ' AND b.project_id = ?'; params.push(project_id); }
+    if (version_id) { sql += ' AND b.version_id = ?'; params.push(version_id); }
+    sql += ' GROUP BY status';
+
+    const rows = db.prepare(sql).all(...params);
+    const result = {};
+    rows.forEach((r) => { result[r.status] = r.cnt; });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /:id - Get single bug with full details
+router.get('/:id', (req, res) => {
+  try {
+    const scope = getOwnerScope(req);
+    const id = req.params.id;
+
+    const bug = scope.isAdmin
+      ? db.prepare(`
+          SELECT b.*,
+                 p.name AS project_name,
+                 v.name AS version_name,
+                 bl.name AS build_name,
+                 tc.description AS test_case_description
+          FROM bugs b
+          LEFT JOIN projects p ON p.id = b.project_id
+          LEFT JOIN versions v ON v.id = b.version_id
+          LEFT JOIN builds bl ON bl.id = b.build_id
+          LEFT JOIN test_cases tc ON tc.id = b.test_case_id
+          WHERE b.id = ?
+        `).get(id)
+      : db.prepare(`
+          SELECT b.*,
+                 p.name AS project_name,
+                 v.name AS version_name,
+                 bl.name AS build_name,
+                 tc.description AS test_case_description
+          FROM bugs b
+          LEFT JOIN projects p ON p.id = b.project_id
+          LEFT JOIN versions v ON v.id = b.version_id
+          LEFT JOIN builds bl ON bl.id = b.build_id
+          LEFT JOIN test_cases tc ON tc.id = b.test_case_id
+          WHERE b.id = ? AND b.owner_key = ?
+        `).get(id, scope.ownerKey);
+
+    if (!bug) return res.status(404).json({ error: 'Bug not found' });
+    res.json(bug);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -89,6 +170,7 @@ router.post('/', (req, res) => {
     );
 
     const bug = db.prepare('SELECT * FROM bugs WHERE id = ?').get(result.lastInsertRowid);
+    logActivity({ action: 'create', entity_type: 'bug', entity_id: bug.id, entity_label: bug.title, actor: req.headers['x-qc-username'] || '' });
     res.status(201).json(bug);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -136,6 +218,7 @@ router.put('/:id', (req, res) => {
     db.prepare(`UPDATE bugs SET ${setClauses.join(', ')} WHERE id = ?`).run(...values, id);
 
     const bug = db.prepare('SELECT * FROM bugs WHERE id = ?').get(id);
+  logActivity({ action: 'update', entity_type: 'bug', entity_id: bug.id, entity_label: bug.title, actor: req.headers['x-qc-username'] || '', detail: Object.keys(req.body).join(', ') });
     res.json(bug);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -153,6 +236,7 @@ router.delete('/:id', (req, res) => {
       : db.prepare('DELETE FROM bugs WHERE id = ? AND owner_key = ?').run(id, scope.ownerKey);
 
     if (result.changes === 0) return res.status(404).json({ error: 'Bug not found' });
+    logActivity({ action: 'delete', entity_type: 'bug', entity_id: Number(id), actor: req.headers['x-qc-username'] || '' });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -191,6 +275,7 @@ router.post('/bulk-status', (req, res) => {
     });
 
     const changed = update();
+    logActivity({ action: 'bulk_status', entity_type: 'bug', actor: req.headers['x-qc-username'] || '', detail: `Set ${ids.length} bug(s) to ${status}` });
     res.json({ success: true, updated: changed });
   } catch (err) {
     res.status(500).json({ error: err.message });
