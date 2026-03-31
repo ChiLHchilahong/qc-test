@@ -255,3 +255,37 @@ export const getDashboard = async () => {
     checklists,
   };
 };
+
+// ─── TEST PLAN ─────────────────────────
+export const getTestPlans = async (params = {}) => {
+  const res = await api.get('/api/test-plans', { params });
+  return Array.isArray(res.data) ? res.data : [];
+};
+
+export const getTestPlanById = async (id) => {
+  const res = await api.get(`/api/test-plans/${id}`);
+  return res.data;
+};
+
+export const createTestPlan = async (data) => {
+  const res = await api.post('/api/test-plans', data);
+  notifyDataChanged();
+  return res.data;
+};
+
+export const updateTestPlan = async (id, data) => {
+  const res = await api.put(`/api/test-plans/${id}`, data);
+  notifyDataChanged();
+  return res.data;
+};
+
+export const signOffTestPlan = async (id, data = {}) => {
+  const res = await api.post(`/api/test-plans/${id}/sign-off`, data);
+  notifyDataChanged();
+  return res.data;
+};
+
+export const deleteTestPlan = async (id) => {
+  await api.delete(`/api/test-plans/${id}`);
+  notifyDataChanged();
+};

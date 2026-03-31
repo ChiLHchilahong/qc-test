@@ -66,6 +66,30 @@ db.exec(`
     password TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS test_plans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    version_id INTEGER,
+    owner_key TEXT,
+    name TEXT NOT NULL,
+    objective TEXT DEFAULT '',
+    scope_in TEXT DEFAULT '',
+    scope_out TEXT DEFAULT '',
+    entry_criteria TEXT DEFAULT '',
+    exit_criteria TEXT DEFAULT '',
+    status TEXT DEFAULT 'Draft',
+    assignee TEXT DEFAULT '',
+    planned_start_date TEXT,
+    planned_end_date TEXT,
+    actual_end_date TEXT,
+    sign_off_by TEXT DEFAULT '',
+    sign_off_note TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (version_id) REFERENCES versions(id) ON DELETE SET NULL
+  );
 `);
 
 const projectColumns = db.prepare('PRAGMA table_info(projects)').all();
@@ -76,6 +100,10 @@ if (!hasOwnerKey) {
 
 db.prepare("UPDATE projects SET owner_key = 'user:admin' WHERE owner_key IS NULL OR owner_key = ''").run();
 db.exec('CREATE INDEX IF NOT EXISTS idx_projects_owner_key ON projects(owner_key)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_test_plans_owner_key ON test_plans(owner_key)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_test_plans_project_id ON test_plans(project_id)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_test_plans_version_id ON test_plans(version_id)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_test_plans_status ON test_plans(status)');
 
 const defaultUsername = process.env.DEFAULT_LOGIN_USERNAME || 'admin';
 const defaultPassword = process.env.DEFAULT_LOGIN_PASSWORD || '123456';

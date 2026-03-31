@@ -8,6 +8,8 @@ import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 import VersionDetail from './pages/VersionDetail';
 import BuildChecklist from './pages/BuildChecklist';
+import TestPlans from './pages/TestPlans';
+import TestPlanDetail from './pages/TestPlanDetail';
 import Profile from './pages/Profile';
 import Login from './pages/Login';
 
@@ -31,6 +33,8 @@ function App() {
                 path="/projects/:projectId/versions/:versionId/builds/:buildId"
                 element={<BuildChecklist />}
               />
+              <Route path="/test-plans" element={<TestPlans />} />
+              <Route path="/test-plans/:planId" element={<TestPlanDetail />} />
               <Route path="/profile" element={<Profile />} />
             </Route>
           </Route>
