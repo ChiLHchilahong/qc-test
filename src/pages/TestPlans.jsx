@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   getProjects,
@@ -6,6 +6,7 @@ import {
   getTestPlans,
   createTestPlan,
   deleteTestPlan,
+  importTestPlans,
 } from '../api/client';
 import Modal from '../components/Modal';
 
@@ -21,6 +22,100 @@ const initialForm = {
   plannedStartDate: '',
   plannedEndDate: '',
 };
+
+const READY_BADGE = {
+  READY: 'bg-emerald-100 text-emerald-700',
+  BLOCKED: 'bg-rose-100 text-rose-700',
+  RISKY: 'bg-amber-100 text-amber-700',
+  NO_VERSION: 'bg-slate-100 text-slate-700',
+};
+
+async function loadXLSX() {
+  if (window._XLSX) return window._XLSX;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+    s.onload = () => { window._XLSX = window.XLSX; resolve(window.XLSX); };
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+function parseCSV(text) {
+  const rows = [];
+  let currentRow = [];
+  let currentField = '';
+  let insideQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+
+    if (char === '"') {
+      if (insideQuotes && nextChar === '"') {
+        currentField += '"';
+        i++;
+      } else {
+        insideQuotes = !insideQuotes;
+      }
+    } else if (char === ',' && !insideQuotes) {
+      currentRow.push(currentField.trim());
+      currentField = '';
+    } else if ((char === '\n' || char === '\r') && !insideQuotes) {
+      if (char === '\r' && nextChar === '\n') i++;
+      if (currentField !== '' || currentRow.length > 0) {
+        currentRow.push(currentField.trim());
+        rows.push(currentRow);
+        currentRow = [];
+        currentField = '';
+      }
+    } else {
+      currentField += char;
+    }
+  }
+
+  if (currentField !== '' || currentRow.length > 0) {
+    currentRow.push(currentField.trim());
+    rows.push(currentRow);
+  }
+
+  return rows;
+}
+
+function normalizeHeaderKey(input) {
+  return String(input || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function normalizeImportedPlanRow(raw) {
+  const map = {};
+  Object.entries(raw || {}).forEach(([k, v]) => {
+    map[normalizeHeaderKey(k)] = v;
+  });
+
+  return {
+    projectId: map.project_id || map.projectid || '',
+    projectName: map.project || map.project_name || '',
+    versionId: map.version_id || map.versionid || '',
+    versionName: map.version || map.version_name || '',
+    name: map.plan_name || map.name || '',
+    status: map.status || 'Draft',
+    assignee: map.assignee || '',
+    objective: map.objective || '',
+    scopeIn: map.scope_in || '',
+    scopeOut: map.scope_out || '',
+    entryCriteria: map.entry_criteria || '',
+    exitCriteria: map.exit_criteria || '',
+    plannedStartDate: map.planned_start || map.planned_start_date || '',
+    plannedEndDate: map.planned_end || map.planned_end_date || '',
+    minPassRate: map.min_pass_rate || map.min_pass_rate_percent || 80,
+    maxFailed: map.max_failed || 0,
+    maxNotRunPercent: map.max_not_run_percent || 20,
+  };
+}
 
 export default function TestPlans() {
   const navigate = useNavigate();
@@ -38,6 +133,8 @@ export default function TestPlans() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [form, setForm] = useState(initialForm);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef(null);
 
   const queryProjectId = searchParams.get('projectId') || '';
   const queryVersionId = searchParams.get('versionId') || '';
@@ -143,6 +240,199 @@ export default function TestPlans() {
     await fetchData();
   };
 
+  const handleExportCSV = () => {
+    if (!plans.length) {
+      alert('Không có test plan để export');
+      return;
+    }
+
+    const headers = [
+      'Plan Name', 'Status', 'Readiness', 'Project', 'Project ID', 'Version', 'Version ID',
+      'Assignee', 'Objective', 'Scope In', 'Scope Out', 'Entry Criteria', 'Exit Criteria',
+      'Planned Start', 'Planned End', 'Min Pass Rate', 'Max Failed', 'Max Not Run %'
+    ];
+    const rows = plans.map((p) => [
+      p.name || '',
+      p.status || '',
+      p.execution_readiness_status || '',
+      p.project_name || '',
+      p.project_id || '',
+      p.version_name || '',
+      p.version_id || '',
+      p.assignee || '',
+      p.objective || '',
+      p.scope_in || '',
+      p.scope_out || '',
+      p.entry_criteria || '',
+      p.exit_criteria || '',
+      p.planned_start_date || '',
+      p.planned_end_date || '',
+      p.min_pass_rate ?? 80,
+      p.max_failed ?? 0,
+      p.max_not_run_percent ?? 20,
+    ]);
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map((x) => '"' + String(x ?? '').replace(/"/g, '""') + '"').join(','))
+      .join('\n');
+
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }));
+    a.download = `test-plans-${Date.now()}.csv`;
+    a.click();
+  };
+
+  const handleExportExcel = async () => {
+    if (!plans.length) {
+      alert('Không có test plan để export');
+      return;
+    }
+
+    const XLSX = await loadXLSX();
+    const rows = plans.map((p) => ({
+      'Plan Name': p.name || '',
+      Status: p.status || '',
+      Readiness: p.execution_readiness_status || '',
+      Project: p.project_name || '',
+      'Project ID': p.project_id || '',
+      Version: p.version_name || '',
+      'Version ID': p.version_id || '',
+      Assignee: p.assignee || '',
+      Objective: p.objective || '',
+      'Scope In': p.scope_in || '',
+      'Scope Out': p.scope_out || '',
+      'Entry Criteria': p.entry_criteria || '',
+      'Exit Criteria': p.exit_criteria || '',
+      'Planned Start': p.planned_start_date || '',
+      'Planned End': p.planned_end_date || '',
+      'Min Pass Rate': p.min_pass_rate ?? 80,
+      'Max Failed': p.max_failed ?? 0,
+      'Max Not Run %': p.max_not_run_percent ?? 20,
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Test Plans');
+    XLSX.writeFile(wb, `test-plans-${Date.now()}.xlsx`);
+  };
+
+  const handleDownloadTemplateCSV = () => {
+    const headers = [
+      'Plan Name', 'Status', 'Project', 'Project ID', 'Version', 'Version ID',
+      'Assignee', 'Objective', 'Scope In', 'Scope Out', 'Entry Criteria', 'Exit Criteria',
+      'Planned Start', 'Planned End', 'Min Pass Rate', 'Max Failed', 'Max Not Run %'
+    ];
+    const sampleRow = [
+      'Regression Plan - Sprint 12',
+      'Draft',
+      'Guest',
+      '',
+      '1.2.1',
+      '',
+      'QA Lead',
+      'Validate core user flows and critical modules',
+      'Login, Project, Build Checklist',
+      'Performance testing',
+      'Stable test environment and test data ready',
+      'No critical defects and pass rate reaches threshold',
+      '2026-04-01',
+      '2026-04-05',
+      '80',
+      '0',
+      '20',
+    ];
+
+    const csv = [headers, sampleRow]
+      .map((row) => row.map((x) => '"' + String(x ?? '').replace(/"/g, '""') + '"').join(','))
+      .join('\n');
+
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }));
+    a.download = 'test-plan-import-template.csv';
+    a.click();
+  };
+
+  const handleDownloadTemplateExcel = async () => {
+    const XLSX = await loadXLSX();
+    const rows = [
+      {
+        'Plan Name': 'Regression Plan - Sprint 12',
+        Status: 'Draft',
+        Project: 'Guest',
+        'Project ID': '',
+        Version: '1.2.1',
+        'Version ID': '',
+        Assignee: 'QA Lead',
+        Objective: 'Validate core user flows and critical modules',
+        'Scope In': 'Login, Project, Build Checklist',
+        'Scope Out': 'Performance testing',
+        'Entry Criteria': 'Stable test environment and test data ready',
+        'Exit Criteria': 'No critical defects and pass rate reaches threshold',
+        'Planned Start': '2026-04-01',
+        'Planned End': '2026-04-05',
+        'Min Pass Rate': 80,
+        'Max Failed': 0,
+        'Max Not Run %': 20,
+      },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    XLSX.writeFile(wb, 'test-plan-import-template.xlsx');
+  };
+
+  const handleImportFile = async (file) => {
+    if (!file) return;
+    setImporting(true);
+    try {
+      const fileName = String(file.name || '').toLowerCase();
+      let rawRows = [];
+
+      if (fileName.endsWith('.csv')) {
+        const text = await file.text();
+        const rows = parseCSV(text);
+        if (!rows.length) throw new Error('CSV rỗng');
+        const headers = rows[0].map((h) => normalizeHeaderKey(h));
+        rawRows = rows.slice(1).filter((r) => r.some((v) => String(v || '').trim())).map((r) => {
+          const obj = {};
+          headers.forEach((h, idx) => { obj[h] = r[idx] ?? ''; });
+          return obj;
+        });
+      } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        const XLSX = await loadXLSX();
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: 'array' });
+        const firstSheet = wb.Sheets[wb.SheetNames[0]];
+        rawRows = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+      } else {
+        throw new Error('Chỉ hỗ trợ file CSV hoặc Excel');
+      }
+
+      const plansForImport = rawRows
+        .map(normalizeImportedPlanRow)
+        .filter((row) => String(row.name || '').trim());
+
+      if (!plansForImport.length) {
+        throw new Error('Không tìm thấy dòng test plan hợp lệ trong file');
+      }
+
+      const result = await importTestPlans(plansForImport);
+      await fetchData();
+
+      const errorCount = Array.isArray(result?.errors) ? result.errors.length : 0;
+      alert(`✅ Imported ${result?.imported ?? 0} plans${errorCount ? `\n⚠️ ${errorCount} dòng lỗi (xem console)` : ''}`);
+      if (errorCount) {
+        console.warn('Test plan import errors:', result.errors);
+      }
+    } catch (e) {
+      alert('❌ Import lỗi: ' + (e?.message || 'Unknown error'));
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -164,12 +454,52 @@ export default function TestPlans() {
           <h1 className="text-2xl font-bold text-gray-900">Test Plans</h1>
           <p className="text-sm text-gray-500">Plan scope, owners, and readiness for each release.</p>
         </div>
-        <button
-          onClick={handleOpenCreate}
-          className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700"
-        >
-          + New Test Plan
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            className="hidden"
+            onChange={(e) => handleImportFile(e.target.files?.[0])}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {importing ? 'Importing...' : 'Import Excel/CSV'}
+          </button>
+          <button
+            onClick={handleDownloadTemplateExcel}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+          >
+            Template Excel
+          </button>
+          <button
+            onClick={handleDownloadTemplateCSV}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+          >
+            Template CSV
+          </button>
+          <button
+            onClick={handleExportExcel}
+            className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+          >
+            Export Excel
+          </button>
+          <button
+            onClick={handleExportCSV}
+            className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-semibold text-white hover:bg-purple-700"
+          >
+            Export CSV
+          </button>
+          <button
+            onClick={handleOpenCreate}
+            className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700"
+          >
+            + New Test Plan
+          </button>
+        </div>
       </div>
 
       <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-gray-200 bg-white p-3 sm:grid-cols-3">
@@ -225,6 +555,12 @@ export default function TestPlans() {
                 </button>
                 <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
                   {plan.status}
+                </span>
+              </div>
+
+              <div className="mb-2">
+                <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${READY_BADGE[plan.execution_readiness_status] || READY_BADGE.NO_VERSION}`}>
+                  {plan.execution_readiness_status || 'NO_VERSION'}
                 </span>
               </div>
 

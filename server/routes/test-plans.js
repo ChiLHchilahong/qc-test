@@ -202,7 +202,133 @@ router.get('/', (req, res) => {
       ORDER BY tp.created_at DESC, tp.id DESC
     `).all(...values);
 
-    res.json(rows);
+    const enriched = rows.map((row) => {
+      const summary = buildExecutionSummary(row.version_id);
+      const readiness = evaluateExecutionReadiness(summary, row);
+      return {
+        ...row,
+        execution_readiness_status: readiness.status,
+        execution_can_sign_off: readiness.can_sign_off,
+      };
+    });
+
+    res.json(enriched);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /import - Bulk import test plans
+router.post('/import', (req, res) => {
+  try {
+    const scope = getOwnerScope(req);
+    const inputPlans = Array.isArray(req.body?.plans) ? req.body.plans : [];
+    if (inputPlans.length === 0) {
+      return res.status(400).json({ error: 'plans array is required' });
+    }
+
+    const resolveProject = (projectIdRaw, projectNameRaw) => {
+      const projectId = Number(projectIdRaw);
+      if (Number.isFinite(projectId) && projectId > 0) {
+        return ensureOwnedProject(scope, projectId);
+      }
+
+      const projectName = String(projectNameRaw || '').trim();
+      if (!projectName) return null;
+      return scope.isAdmin
+        ? db.prepare('SELECT id, owner_key FROM projects WHERE name = ? ORDER BY id DESC').get(projectName)
+        : db.prepare('SELECT id, owner_key FROM projects WHERE name = ? AND owner_key = ? ORDER BY id DESC').get(projectName, scope.ownerKey);
+    };
+
+    const resolveVersion = (versionIdRaw, versionNameRaw, projectId) => {
+      const versionId = Number(versionIdRaw);
+      if (Number.isFinite(versionId) && versionId > 0) {
+        return ensureOwnedVersion(scope, versionId);
+      }
+
+      const versionName = String(versionNameRaw || '').trim();
+      if (!versionName || !projectId) return null;
+
+      return scope.isAdmin
+        ? db.prepare('SELECT id, project_id FROM versions WHERE project_id = ? AND name = ? ORDER BY id DESC').get(projectId, versionName)
+        : db.prepare(`
+            SELECT v.id, v.project_id
+            FROM versions v
+            JOIN projects p ON p.id = v.project_id
+            WHERE v.project_id = ? AND v.name = ? AND p.owner_key = ?
+            ORDER BY v.id DESC
+          `).get(projectId, versionName, scope.ownerKey);
+    };
+
+    const insertStmt = db.prepare(`
+      INSERT INTO test_plans (
+        project_id, version_id, owner_key, name,
+        objective, scope_in, scope_out,
+        entry_criteria, exit_criteria,
+        status, min_pass_rate, max_failed, max_not_run_percent,
+        assignee,
+        planned_start_date, planned_end_date,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const imported = [];
+    const errors = [];
+
+    for (let i = 0; i < inputPlans.length; i++) {
+      const row = inputPlans[i] || {};
+      const name = String(row.name || '').trim();
+      if (!name) {
+        errors.push({ row: i + 1, error: 'Missing plan name' });
+        continue;
+      }
+
+      const project = resolveProject(row.projectId, row.projectName);
+      if (!project) {
+        errors.push({ row: i + 1, error: 'Project not found or forbidden' });
+        continue;
+      }
+
+      let versionId = null;
+      const version = resolveVersion(row.versionId, row.versionName, project.id);
+      if (version) {
+        if (Number(version.project_id) !== Number(project.id)) {
+          errors.push({ row: i + 1, error: 'Version does not belong to project' });
+          continue;
+        }
+        versionId = Number(version.id);
+      }
+
+      const now = new Date().toISOString();
+      const result = insertStmt.run(
+        Number(project.id),
+        versionId,
+        scope.isAdmin ? (project.owner_key || scope.ownerKey) : scope.ownerKey,
+        name,
+        String(row.objective || ''),
+        String(row.scopeIn || ''),
+        String(row.scopeOut || ''),
+        String(row.entryCriteria || ''),
+        String(row.exitCriteria || ''),
+        normalizeStatus(row.status),
+        clampPercent(row.minPassRate, 80),
+        clampNonNegative(row.maxFailed, 0),
+        clampPercent(row.maxNotRunPercent, 20),
+        String(row.assignee || ''),
+        row.plannedStartDate || null,
+        row.plannedEndDate || null,
+        now
+      );
+
+      imported.push(result.lastInsertRowid);
+    }
+
+    res.json({
+      success: true,
+      imported: imported.length,
+      importedIds: imported,
+      errors,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

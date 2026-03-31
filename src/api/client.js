@@ -290,3 +290,9 @@ export const deleteTestPlan = async (id) => {
   await api.delete(`/api/test-plans/${id}`);
   notifyDataChanged();
 };
+
+export const importTestPlans = async (plans) => {
+  const res = await api.post('/api/test-plans/import', { plans });
+  notifyDataChanged();
+  return res.data;
+};
