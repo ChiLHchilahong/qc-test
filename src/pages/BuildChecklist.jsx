@@ -721,6 +721,7 @@ export default function BuildChecklist() {
   const [showAiGeminiKey, setShowAiGeminiKey] = useState(false);
   const [aiFileName, setAiFileName] = useState('');
   const [aiProvider, setAiProvider] = useState('');
+  const [aiInputMode, setAiInputMode] = useState('file');
   const aiInputRef = useRef();
 
   const fetchAll = useCallback(() => {
@@ -919,7 +920,7 @@ export default function BuildChecklist() {
     const sourceContent = (typeof contentOverride === 'string' ? contentOverride : fileContent).trim();
     const promptText = aiPrompt.trim();
 
-    if (!sourceContent) { alert('Vui lòng import file trước!'); return; }
+    if (!sourceContent) { alert('Vui lòng kéo file hoặc nhập nội dung tài liệu trước!'); return; }
     if (!promptText) { alert('Vui lòng nhập yêu cầu/prompt!'); return; }
     if (!aiGeminiKey.trim()) { alert('Vui lòng nhập Gemini API key!'); return; }
 
@@ -1240,21 +1241,53 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
             </div>
           </div>}
 
-          {/* File Upload */}
+          {/* Input source */}
           <div className="mb-3">
-            <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>Upload File (PDF/DOCX max 20MB) *</label>
-            <div
-              onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.background = '#e0e7ff'; }}
-              onDragLeave={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
-              onDrop={(e) => { e.preventDefault(); e.currentTarget.style.background = '#f8fafc'; if (e.dataTransfer.files[0]) handleAIFileUpload(e.dataTransfer.files[0]); }}
-              onClick={() => aiInputRef.current?.click()}
-              style={{ border: '2px dashed #cbd5e1', borderRadius: 10, padding: '12px', textAlign: 'center', cursor: 'pointer', background: '#f8fafc', transition: 'all 0.2s' }}
-            >
-              <div style={{ fontSize: 18, marginBottom: 4 }}>📄</div>
-              <div style={{ fontSize: 12, fontWeight: 600 }}>Kéo file hoặc click để chọn</div>
-              {aiFileName && <div style={{ fontSize: 11, color: '#15803d', marginTop: 6 }}>✅ {aiFileName}</div>}
-              <input ref={aiInputRef} type="file" accept=".pdf,.docx" style={{ display: 'none' }} onChange={(e) => { if (e.target.files[0]) handleAIFileUpload(e.target.files[0]); e.target.value = ''; }} />
+            <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>Nguồn nội dung tài liệu *</label>
+            <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid #dbe4f0', marginBottom: 10 }}>
+              <button
+                type="button"
+                onClick={() => setAiInputMode('file')}
+                style={{ flex: 1, padding: '8px 10px', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', background: aiInputMode === 'file' ? '#2563eb' : '#f8fafc', color: aiInputMode === 'file' ? '#fff' : '#475569' }}>
+                📄 Kéo file PDF/DOCX
+              </button>
+              <button
+                type="button"
+                onClick={() => setAiInputMode('text')}
+                style={{ flex: 1, padding: '8px 10px', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', background: aiInputMode === 'text' ? '#2563eb' : '#f8fafc', color: aiInputMode === 'text' ? '#fff' : '#475569' }}>
+                📝 Nhập nội dung trực tiếp
+              </button>
             </div>
+
+            {aiInputMode === 'file' ? (
+              <div
+                onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.background = '#e0e7ff'; }}
+                onDragLeave={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
+                onDrop={(e) => { e.preventDefault(); e.currentTarget.style.background = '#f8fafc'; if (e.dataTransfer.files[0]) handleAIFileUpload(e.dataTransfer.files[0]); }}
+                onClick={() => aiInputRef.current?.click()}
+                style={{ border: '2px dashed #cbd5e1', borderRadius: 10, padding: '12px', textAlign: 'center', cursor: 'pointer', background: '#f8fafc', transition: 'all 0.2s' }}
+              >
+                <div style={{ fontSize: 18, marginBottom: 4 }}>📄</div>
+                <div style={{ fontSize: 12, fontWeight: 600 }}>Kéo file hoặc click để chọn</div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>Hỗ trợ PDF/DOCX tối đa 20MB</div>
+                {aiFileName && <div style={{ fontSize: 11, color: '#15803d', marginTop: 6 }}>✅ {aiFileName}</div>}
+                <input ref={aiInputRef} type="file" accept=".pdf,.docx" style={{ display: 'none' }} onChange={(e) => { if (e.target.files[0]) handleAIFileUpload(e.target.files[0]); e.target.value = ''; }} />
+              </div>
+            ) : (
+              <div>
+                <textarea
+                  value={fileContent}
+                  onChange={(e) => { setFileContent(e.target.value); setAiFileName(''); }}
+                  rows={7}
+                  placeholder="Dán nội dung tài liệu/spec vào đây để AI phân tích và generate test cases..."
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  style={{ fontSize: 12, resize: 'vertical' }}
+                />
+                <div style={{ fontSize: 10, color: '#64748b', marginTop: 6 }}>
+                  Bạn có thể nhập tay hoặc paste nội dung trực tiếp, không cần upload file.
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Prompt Input */}
