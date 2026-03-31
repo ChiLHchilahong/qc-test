@@ -27,6 +27,18 @@ function ensureOwnedVersion(scope, versionId) {
       `).get(versionId, scope.ownerKey);
 }
 
+function clampPercent(value, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function clampNonNegative(value, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.round(n));
+}
+
 function buildExecutionSummary(versionId) {
   if (!versionId) return null;
 
@@ -85,6 +97,66 @@ function buildExecutionSummary(versionId) {
     executed,
     pass_rate: passRate,
     execution_rate: executionRate,
+  };
+}
+
+function evaluateExecutionReadiness(summary, plan) {
+  const thresholds = {
+    min_pass_rate: clampPercent(plan?.min_pass_rate, 80),
+    max_failed: clampNonNegative(plan?.max_failed, 0),
+    max_not_run_percent: clampPercent(plan?.max_not_run_percent, 20),
+  };
+
+  if (!plan?.version_id) {
+    return {
+      status: 'NO_VERSION',
+      can_sign_off: false,
+      reasons: ['Link this plan to a version to evaluate readiness.'],
+      thresholds,
+    };
+  }
+
+  if (!summary || Number(summary.total || 0) === 0) {
+    return {
+      status: 'RISKY',
+      can_sign_off: false,
+      reasons: ['No test cases found in linked version.'],
+      thresholds,
+    };
+  }
+
+  const reasons = [];
+  const passRate = Number(summary.pass_rate || 0);
+  const failed = Number(summary.failed || 0);
+  const notRunPercent = Number(summary.total || 0) > 0
+    ? Math.round((Number(summary.not_run || 0) / Number(summary.total || 0)) * 100)
+    : 100;
+
+  if (failed > thresholds.max_failed) {
+    reasons.push(`Failed (${failed}) vượt ngưỡng cho phép (${thresholds.max_failed}).`);
+  }
+  if (passRate < thresholds.min_pass_rate) {
+    reasons.push(`Pass rate ${passRate}% thấp hơn ngưỡng ${thresholds.min_pass_rate}%.`);
+  }
+  if (notRunPercent > thresholds.max_not_run_percent) {
+    reasons.push(`Not Run ${notRunPercent}% cao hơn ngưỡng ${thresholds.max_not_run_percent}%.`);
+  }
+
+  if (reasons.length === 0) {
+    return {
+      status: 'READY',
+      can_sign_off: true,
+      reasons: ['All quality thresholds are satisfied.'],
+      thresholds,
+    };
+  }
+
+  const hasBlockingFailed = failed > thresholds.max_failed;
+  return {
+    status: hasBlockingFailed ? 'BLOCKED' : 'RISKY',
+    can_sign_off: false,
+    reasons,
+    thresholds,
   };
 }
 
@@ -163,7 +235,8 @@ router.get('/:id', (req, res) => {
     }
 
     const executionSummary = buildExecutionSummary(row.version_id);
-    res.json({ ...row, execution_summary: executionSummary });
+    const executionReadiness = evaluateExecutionReadiness(executionSummary, row);
+    res.json({ ...row, execution_summary: executionSummary, execution_readiness: executionReadiness });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -183,6 +256,9 @@ router.post('/', (req, res) => {
       entryCriteria = '',
       exitCriteria = '',
       status,
+      minPassRate,
+      maxFailed,
+      maxNotRunPercent,
       assignee = '',
       plannedStartDate = null,
       plannedEndDate = null,
@@ -215,10 +291,10 @@ router.post('/', (req, res) => {
         project_id, version_id, owner_key, name,
         objective, scope_in, scope_out,
         entry_criteria, exit_criteria,
-        status, assignee,
+        status, min_pass_rate, max_failed, max_not_run_percent, assignee,
         planned_start_date, planned_end_date,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       Number(projectId),
       safeVersionId,
@@ -230,6 +306,9 @@ router.post('/', (req, res) => {
       String(entryCriteria || ''),
       String(exitCriteria || ''),
       normalizeStatus(status),
+      clampPercent(minPassRate, 80),
+      clampNonNegative(maxFailed, 0),
+      clampPercent(maxNotRunPercent, 20),
       String(assignee || ''),
       plannedStartDate || null,
       plannedEndDate || null,
@@ -265,6 +344,9 @@ router.put('/:id', (req, res) => {
       entryCriteria,
       exitCriteria,
       status,
+      minPassRate,
+      maxFailed,
+      maxNotRunPercent,
       assignee,
       plannedStartDate,
       plannedEndDate,
@@ -300,6 +382,9 @@ router.put('/:id', (req, res) => {
       entry_criteria: entryCriteria !== undefined ? String(entryCriteria || '') : existing.entry_criteria,
       exit_criteria: exitCriteria !== undefined ? String(exitCriteria || '') : existing.exit_criteria,
       status: status !== undefined ? normalizeStatus(status) : existing.status,
+      min_pass_rate: minPassRate !== undefined ? clampPercent(minPassRate, 80) : clampPercent(existing.min_pass_rate, 80),
+      max_failed: maxFailed !== undefined ? clampNonNegative(maxFailed, 0) : clampNonNegative(existing.max_failed, 0),
+      max_not_run_percent: maxNotRunPercent !== undefined ? clampPercent(maxNotRunPercent, 20) : clampPercent(existing.max_not_run_percent, 20),
       assignee: assignee !== undefined ? String(assignee || '') : existing.assignee,
       planned_start_date: plannedStartDate !== undefined ? (plannedStartDate || null) : existing.planned_start_date,
       planned_end_date: plannedEndDate !== undefined ? (plannedEndDate || null) : existing.planned_end_date,
@@ -320,6 +405,9 @@ router.put('/:id', (req, res) => {
         entry_criteria = @entry_criteria,
         exit_criteria = @exit_criteria,
         status = @status,
+        min_pass_rate = @min_pass_rate,
+        max_failed = @max_failed,
+        max_not_run_percent = @max_not_run_percent,
         assignee = @assignee,
         planned_start_date = @planned_start_date,
         planned_end_date = @planned_end_date,
@@ -351,6 +439,12 @@ router.post('/:id/sign-off', (req, res) => {
 
     if (!existing) {
       return res.status(404).json({ error: 'Test plan not found' });
+    }
+
+    const executionSummary = buildExecutionSummary(existing.version_id);
+    const readiness = evaluateExecutionReadiness(executionSummary, existing);
+    if (!readiness.can_sign_off) {
+      return res.status(409).json({ error: 'Test plan is not ready for sign-off', readiness });
     }
 
     const nextStatus = VALID_STATUSES.has(status) ? status : 'Closed';

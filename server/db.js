@@ -79,6 +79,9 @@ db.exec(`
     entry_criteria TEXT DEFAULT '',
     exit_criteria TEXT DEFAULT '',
     status TEXT DEFAULT 'Draft',
+    min_pass_rate INTEGER DEFAULT 80,
+    max_failed INTEGER DEFAULT 0,
+    max_not_run_percent INTEGER DEFAULT 20,
     assignee TEXT DEFAULT '',
     planned_start_date TEXT,
     planned_end_date TEXT,
@@ -99,6 +102,24 @@ if (!hasOwnerKey) {
 }
 
 db.prepare("UPDATE projects SET owner_key = 'user:admin' WHERE owner_key IS NULL OR owner_key = ''").run();
+
+const testPlanColumns = db.prepare('PRAGMA table_info(test_plans)').all();
+const hasMinPassRate = testPlanColumns.some((c) => c.name === 'min_pass_rate');
+const hasMaxFailed = testPlanColumns.some((c) => c.name === 'max_failed');
+const hasMaxNotRunPercent = testPlanColumns.some((c) => c.name === 'max_not_run_percent');
+if (!hasMinPassRate) {
+  db.exec('ALTER TABLE test_plans ADD COLUMN min_pass_rate INTEGER DEFAULT 80');
+}
+if (!hasMaxFailed) {
+  db.exec('ALTER TABLE test_plans ADD COLUMN max_failed INTEGER DEFAULT 0');
+}
+if (!hasMaxNotRunPercent) {
+  db.exec('ALTER TABLE test_plans ADD COLUMN max_not_run_percent INTEGER DEFAULT 20');
+}
+db.prepare('UPDATE test_plans SET min_pass_rate = 80 WHERE min_pass_rate IS NULL').run();
+db.prepare('UPDATE test_plans SET max_failed = 0 WHERE max_failed IS NULL').run();
+db.prepare('UPDATE test_plans SET max_not_run_percent = 20 WHERE max_not_run_percent IS NULL').run();
+
 db.exec('CREATE INDEX IF NOT EXISTS idx_projects_owner_key ON projects(owner_key)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_test_plans_owner_key ON test_plans(owner_key)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_test_plans_project_id ON test_plans(project_id)');

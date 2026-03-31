@@ -39,6 +39,9 @@ export default function TestPlanDetail() {
     plannedStartDate: '',
     plannedEndDate: '',
     actualEndDate: '',
+    minPassRate: 80,
+    maxFailed: 0,
+    maxNotRunPercent: 20,
   });
 
   const hydrate = useCallback(async () => {
@@ -70,6 +73,9 @@ export default function TestPlanDetail() {
         plannedStartDate: planData?.planned_start_date || '',
         plannedEndDate: planData?.planned_end_date || '',
         actualEndDate: planData?.actual_end_date || '',
+        minPassRate: Number(planData?.min_pass_rate ?? 80),
+        maxFailed: Number(planData?.max_failed ?? 0),
+        maxNotRunPercent: Number(planData?.max_not_run_percent ?? 20),
       });
       setSignOffNote(planData?.sign_off_note || '');
     } catch (err) {
@@ -88,6 +94,7 @@ export default function TestPlanDetail() {
     return project?.name || plan?.project_name || '-';
   }, [projects, form.projectId, plan]);
   const executionSummary = plan?.execution_summary || null;
+  const executionReadiness = plan?.execution_readiness || null;
 
   const handleProjectChange = async (value) => {
     setForm((prev) => ({ ...prev, projectId: value, versionId: '' }));
@@ -116,6 +123,9 @@ export default function TestPlanDetail() {
         plannedStartDate: form.plannedStartDate || null,
         plannedEndDate: form.plannedEndDate || null,
         actualEndDate: form.actualEndDate || null,
+        minPassRate: Number(form.minPassRate ?? 80),
+        maxFailed: Number(form.maxFailed ?? 0),
+        maxNotRunPercent: Number(form.maxNotRunPercent ?? 20),
         versionId: form.versionId ? Number(form.versionId) : null,
       };
       await updateTestPlan(planId, payload);
@@ -331,6 +341,44 @@ export default function TestPlanDetail() {
             </div>
           </div>
 
+          <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 p-3">
+            <p className="text-sm font-semibold text-indigo-900">Release Thresholds</p>
+            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Min Pass Rate (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={form.minPassRate}
+                  onChange={(e) => setForm((prev) => ({ ...prev, minPassRate: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Max Failed</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={form.maxFailed}
+                  onChange={(e) => setForm((prev) => ({ ...prev, maxFailed: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Max Not Run (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={form.maxNotRunPercent}
+                  onChange={(e) => setForm((prev) => ({ ...prev, maxNotRunPercent: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="flex justify-end">
             <button
               onClick={handleSave}
@@ -361,6 +409,27 @@ export default function TestPlanDetail() {
                   <div className="rounded-lg bg-white p-2"><span className="text-slate-500">Pass Rate</span><div className="font-bold text-indigo-700">{executionSummary?.pass_rate ?? 0}%</div></div>
                   <div className="rounded-lg bg-white p-2"><span className="text-slate-500">Execution</span><div className="font-bold text-indigo-700">{executionSummary?.execution_rate ?? 0}%</div></div>
                 </div>
+                {executionReadiness ? (
+                  <div className="mt-3 rounded-lg border border-slate-200 bg-white p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-slate-500">Release Readiness</span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                        executionReadiness.status === 'READY'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : executionReadiness.status === 'BLOCKED'
+                            ? 'bg-rose-100 text-rose-700'
+                            : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {executionReadiness.status}
+                      </span>
+                    </div>
+                    <ul className="mt-1 space-y-1 text-xs text-slate-600">
+                      {(Array.isArray(executionReadiness.reasons) ? executionReadiness.reasons : []).map((reason, idx) => (
+                        <li key={`${idx}-${reason}`}>• {reason}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 <p className="mt-2 text-[11px] text-slate-500">
                   Total = Passed + Failed + Warning + In Progress + Not Run
                 </p>
@@ -396,11 +465,14 @@ export default function TestPlanDetail() {
 
           <button
             onClick={handleSignOff}
-            disabled={saving}
+            disabled={saving || !executionReadiness?.can_sign_off}
             className="w-full rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? 'Processing...' : 'Sign Off (Close Plan)'}
           </button>
+          {!executionReadiness?.can_sign_off ? (
+            <p className="text-xs text-amber-700">Sign-off is enabled only when readiness is READY.</p>
+          ) : null}
         </aside>
       </section>
 
