@@ -111,7 +111,7 @@ export default function VersionDetail() {
   const displayVersionName = capitalizeDisplayName(versionName);
 
   return (
-    <div className="mx-auto max-w-[1600px] px-1 py-2 md:px-2">
+    <div className="mx-auto max-w-[1600px] px-3 py-3 sm:px-4 md:px-2">
       {/* Breadcrumb */}
       <nav className="mb-4 text-sm text-[#7e8ea6]">
         <Link to="/projects" className="transition-colors hover:text-[#2f5bff]">
@@ -126,19 +126,19 @@ export default function VersionDetail() {
       </nav>
 
       {/* Header */}
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <h1 className="text-5xl font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">{displayVersionName}</h1>
+      <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between max-[393px]:gap-2">
+        <h1 className="text-2xl font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b] sm:text-3xl md:text-4xl max-[393px]:text-[26px]">{displayVersionName}</h1>
         <button
           onClick={() => {
             setNameInput('');
             setShowCreateModal(true);
           }}
-          className="rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#4f16df] px-5 py-3 text-lg font-bold text-white transition-opacity hover:opacity-95"
+          className="w-full rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#4f16df] px-4 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-95 sm:w-auto sm:px-5 sm:py-3 sm:text-base max-[393px]:py-2"
         >
           + New Build
         </button>
       </div>
-      <p className="mb-8 text-2xl font-medium text-[#5f708a]">Select a build to open its checklist</p>
+      <p className="mb-6 text-base font-medium text-[#5f708a] sm:mb-8 sm:text-lg max-[393px]:text-sm">Select a build to open its checklist</p>
 
       {/* Grid */}
       {builds.length === 0 ? (
@@ -146,7 +146,7 @@ export default function VersionDetail() {
           <p className="text-gray-400 text-lg">No builds yet. Create one to get started.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-3">
           {builds.map((build) => (
             <div
               key={build.id}

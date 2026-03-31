@@ -74,11 +74,11 @@ export default function Dashboard() {
   const activeChecklists = data?.checklists || [];
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-12">
+    <div className="mx-auto max-w-[1600px] space-y-6 sm:space-y-12 max-[393px]:space-y-5">
       {/* Project Health Analytics */}
       <section>
         <div className="flex items-center justify-between gap-4">
-          <h1 className="text-[42px] font-extrabold leading-tight tracking-[-0.01em] text-[#0d1d3b]">
+          <h1 className="text-2xl font-extrabold leading-tight tracking-[-0.01em] text-[#0d1d3b] sm:text-3xl md:text-[34px] max-[393px]:text-[22px]">
             Project Health Analytics
           </h1>
           {syncing && (
@@ -88,9 +88,9 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-        <p className="mt-2 text-lg text-[#63748e]">Detailed Pass/Fail metrics per version</p>
+        <p className="mt-2 text-base text-[#63748e] sm:text-lg max-[393px]:text-sm">Detailed Pass/Fail metrics per version</p>
 
-        <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-3 md:grid-cols-2">
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:mt-8 sm:gap-6 xl:grid-cols-3 md:grid-cols-2">
           {projects.map((project) => (
             <HealthChart key={project.id} projectName={project.name} versions={project.versions} />
           ))}
@@ -104,7 +104,7 @@ export default function Dashboard() {
       {/* Active Checklists */}
       <section>
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-[42px] font-extrabold leading-tight tracking-[-0.01em] text-[#0d1d3b]">
+          <h2 className="text-2xl font-extrabold leading-tight tracking-[-0.01em] text-[#0d1d3b] sm:text-3xl md:text-[34px] max-[393px]:text-[22px]">
             Active Checklists
           </h2>
           <div className="inline-flex items-center gap-1 rounded-full border border-[#cfd8e6] bg-white/80 p-1">
@@ -127,7 +127,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:mt-8 sm:gap-5 md:grid-cols-2 xl:grid-cols-4">
           {activeChecklists.map((checklist) => (
             <div
               key={checklist.id}

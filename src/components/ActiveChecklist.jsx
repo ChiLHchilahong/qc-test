@@ -88,7 +88,7 @@ const ActiveChecklist = ({ checklist, themeVariant = 'neon' }) => {
   if (checklist.status === 'IN PROGRESS') statusDetail = `${Math.max(total - notRun, 0)}/${total} executed`;
 
   return (
-    <div className={`relative overflow-hidden rounded-[18px] border px-5 py-5 shadow-[0_12px_24px_rgba(30,45,80,0.06)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(30,45,80,0.12)] ${statusTheme.card}`}>
+    <div className={`relative overflow-hidden rounded-[18px] border px-4 py-4 shadow-[0_12px_24px_rgba(30,45,80,0.06)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(30,45,80,0.12)] sm:px-5 sm:py-5 max-[393px]:px-3.5 max-[393px]:py-3.5 ${statusTheme.card}`}>
       <div className="pointer-events-none absolute right-[-52px] top-[-52px] h-28 w-28 rounded-full bg-white/40 blur-2xl" />
 
       <div className="flex items-start justify-between">
@@ -111,26 +111,26 @@ const ActiveChecklist = ({ checklist, themeVariant = 'neon' }) => {
         </button>
       </div>
 
-      <h3 className="mt-6 line-clamp-1 text-[32px] font-extrabold leading-[0.95] tracking-[-0.02em] text-[#0d1d3b]">
+      <h3 className="mt-4 line-clamp-2 break-words text-[18px] font-extrabold leading-[1.15] tracking-[-0.02em] text-[#0d1d3b] sm:mt-6 sm:line-clamp-1 sm:text-[24px] sm:leading-[1.05] max-[393px]:text-[17px]">
         {displayBuildName}
       </h3>
 
-      <p className="mt-3 line-clamp-1 text-sm font-semibold text-[#6d7f99]">
+      <p className="mt-3 line-clamp-2 text-[13px] font-semibold text-[#6d7f99] sm:line-clamp-1 sm:text-sm max-[393px]:text-[12px]">
         Project: {displayProjectName} <span className="px-1">·</span> Version: {displayVersionName}
       </p>
 
-      <div className="mt-7">
+      <div className="mt-5 sm:mt-7">
         <div className="mb-3 flex items-end justify-between gap-3">
           <span className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#5f708a]">
             Test Execution
           </span>
-          <span className={`text-[40px] font-extrabold leading-none tracking-[-0.02em] ${statusTheme.metric}`}>
+          <span className={`text-[22px] font-extrabold leading-none tracking-[-0.02em] sm:text-[30px] max-[393px]:text-[20px] ${statusTheme.metric}`}>
             {executionLabel}%
           </span>
         </div>
-        <div className="h-3.5 w-full rounded-full bg-[#d6dee8]">
+        <div className="h-3 w-full rounded-full bg-[#d6dee8] sm:h-3.5">
           <div
-            className={`h-3.5 rounded-full bg-gradient-to-r transition-all duration-300 ${statusTheme.progress}`}
+            className={`h-3 rounded-full bg-gradient-to-r transition-all duration-300 sm:h-3.5 ${statusTheme.progress}`}
             style={{ width: `${checklist.executionPercent}%` }}
           />
         </div>

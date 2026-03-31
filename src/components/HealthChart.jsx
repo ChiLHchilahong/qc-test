@@ -18,20 +18,20 @@ const HealthChart = ({ projectName, versions = [] }) => {
 
   if (versions.length === 0) {
     return (
-      <div className="rounded-[22px] border border-[#d8e0ec] bg-[#f8fafc] p-7">
+      <div className="rounded-[22px] border border-[#d8e0ec] bg-[#f8fafc] p-5 sm:p-7 max-[393px]:p-4">
         <div className="mb-6 flex items-start justify-between">
           <div>
-            <h3 className="text-[36px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">
+            <h3 className="text-[22px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b] sm:text-[28px] max-[393px]:text-[20px]">
               {displayProjectName}
             </h3>
             <p className="mt-2 text-sm font-semibold text-[#9aa8be]">Version progression</p>
           </div>
           <div className="text-right">
             <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#a7b5ca]">Versions</p>
-            <p className="text-[36px] font-extrabold leading-none text-[#2f5bff]">0</p>
+            <p className="text-[22px] font-extrabold leading-none text-[#2f5bff] sm:text-[28px] max-[393px]:text-[20px]">0</p>
           </div>
         </div>
-        <div className="flex h-[186px] items-center justify-center rounded-xl bg-[#f0f4f9] text-sm font-medium text-[#9caac0]">
+        <div className="flex h-[172px] items-center justify-center rounded-xl bg-[#f0f4f9] text-sm font-medium text-[#9caac0] sm:h-[186px] max-[393px]:h-[158px]">
           No versions created yet.
         </div>
       </div>
@@ -116,20 +116,20 @@ const HealthChart = ({ projectName, versions = [] }) => {
   };
 
   return (
-    <div className="rounded-[22px] border border-[#d8e0ec] bg-[#f8fafc] p-7">
+    <div className="rounded-[22px] border border-[#d8e0ec] bg-[#f8fafc] p-5 sm:p-7 max-[393px]:p-4">
       <div className="mb-5 flex items-start justify-between">
         <div>
-          <h3 className="text-[36px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b]">
+          <h3 className="text-[22px] font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b] sm:text-[28px] max-[393px]:text-[20px]">
             {displayProjectName}
           </h3>
           <p className="mt-2 text-sm font-semibold text-[#9aa8be]">Version progression</p>
         </div>
         <div className="text-right">
           <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#a7b5ca]">Versions</p>
-          <p className="text-[36px] font-extrabold leading-none text-[#2f5bff]">{versions.length}</p>
+          <p className="text-[22px] font-extrabold leading-none text-[#2f5bff] sm:text-[28px] max-[393px]:text-[20px]">{versions.length}</p>
         </div>
       </div>
-      <div className="h-[230px]">
+      <div className="h-[200px] sm:h-[230px] max-[393px]:h-[180px]">
         <Bar data={data} options={options} />
       </div>
     </div>
