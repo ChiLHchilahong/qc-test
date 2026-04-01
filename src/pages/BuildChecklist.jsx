@@ -557,6 +557,216 @@ function ImportDropZone({ onParsed }) {
   );
 }
 
+// ─── Plan Email Modal ───────────────────────────────────
+function PlanEmailModal({ testCases, meta, onClose }) {
+  const [tester, setTester] = useState('');
+  const [estimateTime, setEstimateTime] = useState('');
+  const [extraNote, setExtraNote] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  // Untested = marked ?Test Yes but result still Not Run
+  const untested = testCases.filter(
+    (tc) => (tc.testStatus || tc.test_status || 'Yes') === 'Yes' && normalizeResult(tc.result) === 'Not Run'
+  );
+
+  // Group by feature
+  const grouped = untested.reduce((acc, tc) => {
+    const key = (tc.feature || 'Chung').trim() || 'Chung';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(tc);
+    return acc;
+  }, {});
+
+  const today = new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+
+  function buildPlanHtml() {
+    const testerName = tester.trim() || 'QC Team';
+    const featureBlocks = Object.entries(grouped).map(([feature, cases]) => {
+      const bullets = cases
+        .map((tc) => `<li style='margin:3px 0;color:#374151;font-size:14px'>${tc.description || tc.testToPerform || ''}</li>`)
+        .join('');
+      return (
+        `<li style='margin-bottom:10px;color:#374151;font-size:14px;font-weight:600'>` +
+        `${feature}:` +
+        `<ul style='margin:6px 0 0 16px;list-style:circle;padding-left:8px'>${bullets}</ul>` +
+        `</li>`
+      );
+    }).join('');
+
+    const extraNoteHtml = extraNote.trim()
+      ? `<p style='margin:0 0 16px;font-size:14px;color:#374151'>${extraNote.trim().replace(/\n/g, '<br>')}</p>`
+      : '';
+
+    return (
+      `<!DOCTYPE html><html><head><meta charset='utf-8'></head>` +
+      `<body style='font-family:Segoe UI,Calibri,Arial,sans-serif;color:#1e293b;margin:0;padding:24px;background:#f8fafc'>` +
+      `<div style='max-width:700px;margin:0 auto;background:#fff;border-radius:12px;padding:36px;box-shadow:0 2px 16px rgba(0,0,0,.08)'>` +
+
+      `<p style='margin:0 0 16px;font-size:14px;color:#1e293b'>Dear team,</p>` +
+
+      `<p style='margin:0 0 14px;font-size:14px;color:#1e293b'>` +
+      `QC gửi plan test cho bản build <strong style='color:#1d4ed8'>${meta.build}</strong>` +
+      ` – ${meta.version} – ngày ${today}</p>` +
+
+      (extraNoteHtml) +
+
+      `<ul style='margin:0 0 18px;padding-left:20px;list-style:disc;line-height:1.9'>${featureBlocks}</ul>` +
+
+      (estimateTime.trim()
+        ? `<p style='margin:0 0 20px;font-size:14px;color:#1e293b'><strong>Estimate time:</strong> ${estimateTime.trim()}</p>`
+        : '') +
+
+      `<div style='border-top:1px solid #e2e8f0;padding-top:16px'>` +
+      `<p style='margin:0;font-size:14px;color:#374151;font-style:italic;font-weight:600'>Best regards,</p>` +
+      `<p style='margin:4px 0 0;font-size:14px;color:#374151;font-style:italic;font-weight:600'>${testerName}</p>` +
+      `</div>` +
+
+      `</div></body></html>`
+    );
+  }
+
+  async function doCopy() {
+    const html = buildPlanHtml();
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }) })]);
+    } catch {
+      navigator.clipboard.writeText(html);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  }
+
+  function doDownload() {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([buildPlanHtml()], { type: 'text/html' }));
+    a.download = `plan-${meta.build || 'export'}.html`;
+    a.click();
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 620, maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,.25)' }}>
+
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg,#0f4c81,#1d6fa4)', padding: '18px 24px', color: '#fff', flexShrink: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 16 }}>📋 Plan Email – Test Cases Chưa Chạy</div>
+          <div style={{ fontSize: 12, opacity: 0.75, marginTop: 3 }}>{meta.project} — {meta.version} — {meta.build}</div>
+        </div>
+
+        <div style={{ overflowY: 'auto', padding: 24, flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Summary badge */}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 14px', fontSize: 13, color: '#1d4ed8', fontWeight: 600 }}>
+              📋 {untested.length} case chưa test
+            </div>
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 14px', fontSize: 13, color: '#15803d', fontWeight: 600 }}>
+              🗂 {Object.keys(grouped).length} feature
+            </div>
+          </div>
+
+          {/* Untested grouped preview */}
+          {untested.length === 0 ? (
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '20px', textAlign: 'center' }}>
+              <div style={{ fontSize: 28, marginBottom: 6 }}>🎉</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#15803d' }}>Tất cả test case đã được chạy!</div>
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Không có case nào ở trạng thái Not Run.</div>
+            </div>
+          ) : (
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 14, maxHeight: 200, overflowY: 'auto' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Danh sách case chưa test</div>
+              {Object.entries(grouped).map(([feature, cases]) => (
+                <div key={feature} style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1e3a5f', marginBottom: 4 }}>● {feature}</div>
+                  {cases.map((tc, i) => (
+                    <div key={tc.id || i} style={{ fontSize: 12, color: '#475569', paddingLeft: 16, marginBottom: 2 }}>
+                      ○ {tc.description || tc.testToPerform || '(không có mô tả)'}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Inputs */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Tên người gửi</label>
+              <input
+                value={tester}
+                onChange={(e) => setTester(e.target.value)}
+                placeholder="VD: Huỳnh Tấn Đạt"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                style={{ fontSize: 13 }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Estimate time</label>
+              <input
+                value={estimateTime}
+                onChange={(e) => setEstimateTime(e.target.value)}
+                placeholder="VD: 7 hours"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                style={{ fontSize: 13 }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Nội dung bổ sung <span style={{ fontWeight: 400 }}>(hiện sau dòng mở đầu, trước danh sách)</span></label>
+            <textarea
+              value={extraNote}
+              onChange={(e) => setExtraNote(e.target.value)}
+              placeholder={`VD: Test các tính năng mới của bản ${meta.build}:`}
+              rows={3}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              style={{ fontSize: 13, resize: 'vertical' }}
+            />
+          </div>
+
+          {/* Action buttons */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <button
+              onClick={doCopy}
+              disabled={untested.length === 0}
+              style={{
+                padding: 12, borderRadius: 10, border: '2px solid #1d4ed8',
+                background: copied ? '#1e3a5f' : (untested.length === 0 ? '#f1f5f9' : '#eff6ff'),
+                color: copied ? '#fff' : (untested.length === 0 ? '#94a3b8' : '#1d4ed8'),
+                fontWeight: 700, fontSize: 13,
+                cursor: untested.length === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {copied ? '✓ Đã copy!' : '📋 Copy Email (Outlook)'}
+            </button>
+            <button
+              onClick={doDownload}
+              disabled={untested.length === 0}
+              style={{
+                padding: 12, borderRadius: 10, border: '2px solid #0369a1',
+                background: untested.length === 0 ? '#f1f5f9' : '#f0f9ff',
+                color: untested.length === 0 ? '#94a3b8' : '#0369a1',
+                fontWeight: 700, fontSize: 13,
+                cursor: untested.length === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              ⬇ Download HTML
+            </button>
+          </div>
+
+          <div style={{ background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400e' }}>
+            💡 Copy Email → mở Outlook → New Email → <strong>Ctrl+V</strong> vào body → Gửi
+          </div>
+        </div>
+
+        <div style={{ padding: '12px 24px', borderTop: '1px solid #e2e8f0', textAlign: 'right', flexShrink: 0 }}>
+          <button onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Đóng</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Report Modal (THEO MẪU EMAIL) ───────────────────────
 function ReportModal({ testCases, meta, onClose }) {
   const [tester, setTester] = useState('');
@@ -695,6 +905,7 @@ function ReportModal({ testCases, meta, onClose }) {
 export default function BuildChecklist() {
   const { projectId, versionId, buildId } = useParams();
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
   const [testCases, setTestCases] = useState([]);
   const [projectName, setProjectName] = useState('');
   const [versionName, setVersionName] = useState('');
@@ -704,6 +915,7 @@ export default function BuildChecklist() {
   const [showImport, setShowImport] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [showPlanEmail, setShowPlanEmail] = useState(false);
   const [jiraTc, setJiraTc] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTC, setNewTC] = useState({ feature: '', description: '', testToPerform: '' });
@@ -1167,10 +1379,11 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
         </button>
         <button onClick={handleOpenJira} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium text-sm">Send to Jira</button>
         <button onClick={() => setShowReport(true)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium text-sm">📊 Report</button>
+        <button onClick={() => setShowPlanEmail(true)} className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg font-medium text-sm">📋 Plan Email</button>
         <button
           onClick={() => {
             const suggestedName = `Plan - ${displayBuildName}`;
-            navigate(`/test-plans?projectId=${projectId}&versionId=${versionId}&create=1&name=${encodeURIComponent(suggestedName)}`);
+            navigate(`/test-plans?projectId=${projectId}&versionId=${versionId}&buildId=${buildId}&buildName=${encodeURIComponent(displayBuildName)}&create=1&name=${encodeURIComponent(suggestedName)}`);
           }}
           className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium text-sm"
         >
@@ -1538,6 +1751,7 @@ Hãy tạo test cases chi tiết cho tài liệu trên. Trả về JSON array.`;
       </Modal>
 
       {showReport && <ReportModal testCases={testCases} meta={meta} onClose={() => setShowReport(false)} />}
+      {showPlanEmail && <PlanEmailModal testCases={testCases} meta={meta} onClose={() => setShowPlanEmail(false)} />}
 
       {/* Jira Modal */}
       {showJiraModal && (

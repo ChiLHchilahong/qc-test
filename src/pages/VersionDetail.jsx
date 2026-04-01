@@ -122,27 +122,27 @@ export default function VersionDetail() {
   const displayVersionName = capitalizeDisplayName(versionName);
 
   return (
-    <div className="mx-auto max-w-[1600px] px-3 py-3 sm:px-4 md:px-2">
+    <div className="p-6">
       {/* Breadcrumb */}
-      <nav className="mb-4 text-sm text-[#7e8ea6]">
-        <Link to="/projects" className="transition-colors hover:text-[#2f5bff]">
+      <nav className="text-sm text-gray-500 mb-4">
+        <Link to="/projects" className="hover:text-blue-600 transition-colors">
           Home
         </Link>
         <span className="mx-2">/</span>
-        <Link to={`/projects/${projectId}`} className="transition-colors hover:text-[#2f5bff]">
+        <Link to={`/projects/${projectId}`} className="hover:text-blue-600 transition-colors">
           {displayProjectName}
         </Link>
         <span className="mx-2">/</span>
-        <span className="font-semibold text-[#1b2b49]">{displayVersionName}</span>
+        <span className="text-gray-900 font-medium">{displayVersionName}</span>
       </nav>
 
       {/* Header */}
-      <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between max-[393px]:gap-2">
-        <h1 className="text-2xl font-extrabold leading-none tracking-[-0.01em] text-[#0d1d3b] sm:text-3xl md:text-4xl max-[393px]:text-[26px]">{displayVersionName}</h1>
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <h1 className="text-2xl font-bold text-gray-900">{displayVersionName}</h1>
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate(`/test-plans?projectId=${projectId}&versionId=${versionId}&create=1`)}
-            className="w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-bold text-indigo-700 transition-colors hover:bg-indigo-100 sm:w-auto sm:px-5 sm:py-3 sm:text-base max-[393px]:py-2"
+            onClick={() => navigate(`/test-plans?projectId=${projectId}&versionId=${versionId}&versionName=${encodeURIComponent(displayVersionName)}&create=1&name=${encodeURIComponent(`Plan - ${displayVersionName}`)}`)}
+            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-lg font-medium transition-colors"
           >
             + Test Plan
           </button>
@@ -151,17 +151,45 @@ export default function VersionDetail() {
               setNameInput('');
               setShowCreateModal(true);
             }}
-            className="w-full rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#4f16df] px-4 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-95 sm:w-auto sm:px-5 sm:py-3 sm:text-base max-[393px]:py-2"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
           >
             + New Build
           </button>
         </div>
       </div>
-      <p className="mb-6 text-base font-medium text-[#5f708a] sm:mb-8 sm:text-lg max-[393px]:text-sm">Select a build to open its checklist</p>
+      <p className="text-gray-500 mb-6">Select a build to open its checklist</p>
 
-      {/* Trend Chart */}
+      {/* Grid */}
+      {builds.length === 0 ? (
+        <div className="text-center py-20">
+          <p className="text-gray-400 text-lg">No builds yet. Create one to get started.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {builds.map((build) => (
+            <div
+              key={build.id}
+              onClick={() =>
+                navigate(
+                  `/projects/${projectId}/versions/${versionId}/builds/${build.id}`
+                )
+              }
+              className="cursor-pointer"
+            >
+              <BuildCard
+                build={build}
+                onCopy={() => handleCopy(build)}
+                onRename={() => openRename(build)}
+                onDelete={() => openDelete(build)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Trend Chart - below builds */}
       {trendData.length >= 2 && (
-        <div className="mb-8 bg-white rounded-2xl shadow p-5">
+        <div className="mt-6 bg-white rounded-xl shadow p-5">
           <h2 className="text-base font-bold text-gray-700 mb-4">Pass Rate Trend</h2>
           <Line
             data={{
@@ -207,34 +235,6 @@ export default function VersionDetail() {
               },
             }}
           />
-        </div>
-      )}
-
-      {/* Grid */}
-      {builds.length === 0 ? (
-        <div className="text-center py-20">
-          <p className="text-gray-400 text-lg">No builds yet. Create one to get started.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {builds.map((build) => (
-            <div
-              key={build.id}
-              onClick={() =>
-                navigate(
-                  `/projects/${projectId}/versions/${versionId}/builds/${build.id}`
-                )
-              }
-              className="cursor-pointer"
-            >
-              <BuildCard
-                build={build}
-                onCopy={() => handleCopy(build)}
-                onRename={() => openRename(build)}
-                onDelete={() => openDelete(build)}
-              />
-            </div>
-          ))}
         </div>
       )}
 

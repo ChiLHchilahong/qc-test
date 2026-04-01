@@ -3,6 +3,8 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   getProjects,
   getVersions,
+  getBuilds,
+  getTestCases,
   getTestPlans,
   createTestPlan,
   deleteTestPlan,
@@ -29,6 +31,16 @@ const READY_BADGE = {
   RISKY: 'bg-amber-100 text-amber-700',
   NO_VERSION: 'bg-slate-100 text-slate-700',
 };
+
+function normalizeResult(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return 'Not Run';
+  if (raw === 'passed' || raw === 'pass') return 'Passed';
+  if (raw === 'failed' || raw === 'fail') return 'Failed';
+  if (raw === 'warning' || raw === 'warn') return 'Warning';
+  if (raw === 'in progress' || raw === 'in-progress' || raw === 'in_progress' || raw === 'inprogress') return 'In Progress';
+  return 'Not Run';
+}
 
 async function loadXLSX() {
   if (window._XLSX) return window._XLSX;
@@ -138,8 +150,17 @@ export default function TestPlans() {
 
   const queryProjectId = searchParams.get('projectId') || '';
   const queryVersionId = searchParams.get('versionId') || '';
+  const queryVersionName = searchParams.get('versionName') || '';
+  const queryBuildId = searchParams.get('buildId') || '';
+  const queryBuildName = searchParams.get('buildName') || '';
   const queryName = searchParams.get('name') || '';
   const queryCreate = searchParams.get('create') === '1';
+  const [untestedCases, setUntestedCases] = useState([]);
+  const [planIntro, setPlanIntro] = useState('');
+  const [planHelperCopied, setPlanHelperCopied] = useState(false);
+  const [planCopyMode, setPlanCopyMode] = useState('full');
+  const [showPlanHelperDetails, setShowPlanHelperDetails] = useState(false);
+  const [helperContext, setHelperContext] = useState({ buildId: '', buildName: '', sourceLabel: '' });
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -195,6 +216,144 @@ export default function TestPlans() {
     nextParams.delete('name');
     setSearchParams(nextParams, { replace: true });
   }, [queryCreate, queryProjectId, queryVersionId, queryName, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!showCreateModal) {
+      setHelperContext({ buildId: '', buildName: '', sourceLabel: '' });
+      setUntestedCases([]);
+      return;
+    }
+
+    if (queryBuildId) {
+      setHelperContext({
+        buildId: queryBuildId,
+        buildName: queryBuildName,
+        sourceLabel: `Build hiện tại${queryBuildName ? `: ${queryBuildName}` : ''}`,
+      });
+      return;
+    }
+
+    if (!queryVersionId) {
+      setHelperContext({ buildId: '', buildName: '', sourceLabel: '' });
+      setUntestedCases([]);
+      return;
+    }
+
+    getBuilds(queryVersionId)
+      .then((rows) => {
+        const list = Array.isArray(rows) ? rows : [];
+        if (!list.length) {
+          setHelperContext({ buildId: '', buildName: '', sourceLabel: '' });
+          setUntestedCases([]);
+          return;
+        }
+
+        const latestBuild = [...list].sort((left, right) => {
+          const leftTime = Date.parse(left.createdAt || left.created_at || '') || 0;
+          const rightTime = Date.parse(right.createdAt || right.created_at || '') || 0;
+          if (rightTime !== leftTime) return rightTime - leftTime;
+          return Number(right.id || 0) - Number(left.id || 0);
+        })[0];
+
+        setHelperContext({
+          buildId: String(latestBuild?.id || ''),
+          buildName: latestBuild?.name || '',
+          sourceLabel: `Build mới nhất của version${queryVersionName ? ` ${queryVersionName}` : ''}`,
+        });
+      })
+      .catch(() => {
+        setHelperContext({ buildId: '', buildName: '', sourceLabel: '' });
+        setUntestedCases([]);
+      });
+  }, [queryBuildId, queryBuildName, queryVersionId, queryVersionName, showCreateModal]);
+
+  useEffect(() => {
+    if (!showCreateModal || !helperContext.buildId) {
+      setUntestedCases([]);
+      return;
+    }
+
+    getTestCases(helperContext.buildId)
+      .then((rows) => {
+        const items = (Array.isArray(rows) ? rows : []).filter((tc) => {
+          // "Chưa test" = chưa có kết quả chạy, không phụ thuộc ?Test Yes/No
+          return normalizeResult(tc.result) === 'Not Run';
+        });
+        setUntestedCases(items);
+      })
+      .catch(() => setUntestedCases([]));
+  }, [helperContext.buildId, showCreateModal]);
+
+  const groupedUntestedCases = useMemo(() => {
+    return untestedCases.reduce((acc, tc) => {
+      const key = String(tc.feature || 'General').trim() || 'General';
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(tc);
+      return acc;
+    }, {});
+  }, [untestedCases]);
+
+  const planObjectiveSuggestion = useMemo(() => {
+    if (!untestedCases.length) return '';
+    const features = Object.keys(groupedUntestedCases);
+    const featurePreview = features.slice(0, 4).join(', ');
+    return `Focus on ${untestedCases.length} not-run test cases for ${helperContext.buildName || queryVersionName || 'current scope'} across ${features.length} feature(s): ${featurePreview}${features.length > 4 ? ', ...' : ''}.`;
+  }, [groupedUntestedCases, helperContext.buildName, queryVersionName, untestedCases]);
+
+  const estimatedHours = useMemo(() => {
+    if (!untestedCases.length) return 0;
+    return Math.max(1, Math.ceil(untestedCases.length / 3));
+  }, [untestedCases]);
+
+  const summaryBullets = useMemo(() => {
+    return Object.entries(groupedUntestedCases).map(([feature, cases]) => {
+      const topCases = cases.slice(0, 2).map((tc) => tc.description || tc.testToPerform || '').filter(Boolean);
+      const suffix = cases.length > 2 ? ` và ${cases.length - 2} case khác` : '';
+      return `${feature}: ${topCases.join('; ')}${suffix}`.trim();
+    }).filter(Boolean);
+  }, [groupedUntestedCases]);
+
+  const buildPlanHelperHtml = useCallback(() => {
+    const today = new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+    const intro = planIntro.trim();
+    const targetName = helperContext.buildName || queryVersionName || form.name || 'current scope';
+    const summaryHtml = summaryBullets
+      .map((line) => `<li style='margin:0 0 8px;color:#374151;font-size:14px'>${line}</li>`)
+      .join('');
+    const blocks = Object.entries(groupedUntestedCases).map(([feature, cases]) => {
+      const items = cases
+        .map((tc) => `<li style='margin:3px 0;color:#374151;font-size:14px'>${tc.description || tc.testToPerform || ''}</li>`)
+        .join('');
+      return `<li style='margin-bottom:10px;color:#374151;font-size:14px;font-weight:600'>${feature}:<ul style='margin:6px 0 0 16px;list-style:circle;padding-left:8px'>${items}</ul></li>`;
+    }).join('');
+    const detailSection = planCopyMode === 'summary'
+      ? ''
+      : `<div style='margin:0 0 18px'><p style='margin:0 0 10px;font-size:14px;font-weight:700;color:#1e293b'><em>Danh sách case chưa test:</em></p>${blocks ? `<ul style='margin:0 0 0 20px;padding-left:20px;list-style:disc;line-height:1.9'>${blocks}</ul>` : `<p style='margin:0;color:#64748b;font-size:14px'>Hiện chưa có case chưa test.</p>`}</div>`;
+
+    return (
+      `<!DOCTYPE html><html><head><meta charset='utf-8'></head><body style='font-family:Segoe UI,Calibri,Arial,sans-serif;color:#1e293b;margin:0;padding:24px;background:#f8fafc'>` +
+      `<div style='max-width:720px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;box-shadow:0 2px 16px rgba(0,0,0,.08)'>` +
+      `<p style='margin:0 0 16px;font-size:14px;color:#1e293b'>Dear team,</p>` +
+      `<p style='margin:0 0 14px;font-size:14px;color:#1e293b'>QC gửi plan test cho <strong style='color:#1d4ed8'>${targetName}</strong> - ngày ${today}</p>` +
+      (intro ? `<p style='margin:0 0 16px;font-size:14px;color:#374151'>${intro.replace(/\n/g, '<br>')}</p>` : '') +
+      `<div style='margin:0 0 18px'><p style='margin:0 0 10px;font-size:14px;font-weight:700;color:#1e293b'><em>Tóm tắt ý chính:</em></p><ul style='margin:0 0 0 20px;padding-left:20px;list-style:disc;line-height:1.9'>${summaryHtml || `<li style='color:#64748b'>Hiện chưa có case chưa test để tóm tắt.</li>`}</ul></div>` +
+      detailSection +
+      `<p style='margin:0 0 20px;font-size:14px;color:#1e293b'><strong>Estimate time:</strong> ${estimatedHours || 0} hours</p>` +
+      `<div style='border-top:1px solid #e2e8f0;padding-top:16px'><p style='margin:0;font-size:14px;color:#374151'>Best regards,</p><p style='margin:4px 0 0;font-size:14px;color:#374151'><strong>${form.assignee || 'QC Team'}</strong></p></div>` +
+      `</div></body></html>`
+    );
+  }, [estimatedHours, form.assignee, form.name, groupedUntestedCases, helperContext.buildName, planCopyMode, planIntro, queryVersionName, summaryBullets]);
+
+  const handleCopyPlanHelper = useCallback(async () => {
+    const html = buildPlanHelperHtml();
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }) })]);
+    } catch {
+      await navigator.clipboard.writeText(html);
+    }
+    setPlanHelperCopied(true);
+    setTimeout(() => setPlanHelperCopied(false), 2500);
+  }, [buildPlanHelperHtml]);
 
   const projectMap = useMemo(() => {
     const map = new Map();
@@ -668,6 +827,117 @@ export default function TestPlans() {
               placeholder="Main quality goals for this release"
             />
           </div>
+
+          {(queryBuildId || helperContext.buildId) && (
+            <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-sky-900">Plan Helper From Current Build</div>
+                  <div className="text-xs text-sky-700">Giữ nguyên modal hiện tại, chỉ thêm khối hỗ trợ lấy case chưa test từ {helperContext.sourceLabel || 'build hiện tại'}{helperContext.buildName ? ` (${helperContext.buildName})` : ''}.</div>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                  <span className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-sky-700">{untestedCases.length} case chưa test</span>
+                  <span className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-emerald-700">{Object.keys(groupedUntestedCases).length} feature</span>
+                  <span className="rounded-full border border-amber-200 bg-white px-2.5 py-1 text-amber-700">~ {estimatedHours} giờ</span>
+                </div>
+              </div>
+
+              <div className="mb-3">
+                <label className="mb-1 block text-sm font-medium text-gray-700">Nội dung mở đầu để copy sang Outlook</label>
+                <textarea
+                  value={planIntro}
+                  onChange={(e) => setPlanIntro(e.target.value)}
+                  className="h-14 w-full rounded-lg border border-sky-200 bg-white px-3 py-2"
+                  placeholder={`VD: Test các tính năng mới của ${helperContext.buildName || queryVersionName || 'scope hiện tại'}:`}
+                />
+              </div>
+
+              <div className="mb-3 rounded-lg border border-white/80 bg-white p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="text-xs font-bold uppercase tracking-wide text-gray-500">Summary đề xuất cho Objective</div>
+                  <button
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, objective: planObjectiveSuggestion || prev.objective }))}
+                    disabled={!planObjectiveSuggestion}
+                    className="rounded-lg border border-sky-200 bg-sky-100 px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Use In Objective
+                  </button>
+                </div>
+                <div className="text-sm text-gray-700">{planObjectiveSuggestion || 'Không có case chưa test để gợi ý summary.'}</div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <select
+                  value={planCopyMode}
+                  onChange={(e) => setPlanCopyMode(e.target.value)}
+                  className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm font-medium text-slate-700"
+                >
+                  <option value="full">Tóm tắt + list case</option>
+                  <option value="summary">Chỉ tóm tắt ý chính</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={handleCopyPlanHelper}
+                  className="rounded-lg bg-sky-600 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+                >
+                  {planHelperCopied ? 'Đã copy cho Outlook' : 'Copy Outlook Plan'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlanIntro((prev) => prev || `Test các tính năng mới của ${helperContext.buildName || queryVersionName || 'scope hiện tại'}:`)}
+                  className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-50"
+                >
+                  Điền intro mẫu
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPlanHelperDetails((v) => !v)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  {showPlanHelperDetails ? 'Ẩn chi tiết case' : 'Hiện chi tiết case'}
+                </button>
+                <span className="self-center text-xs text-gray-500">Estimate gợi ý: {estimatedHours} giờ.</span>
+              </div>
+
+              {showPlanHelperDetails && (
+                <div className="mt-3 space-y-3">
+                  <div className="rounded-lg border border-white/80 bg-white p-3">
+                    <div className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">Tóm tắt ý chính để gửi mail</div>
+                    {summaryBullets.length === 0 ? (
+                      <div className="text-sm text-emerald-700">Không có case chưa test để tóm tắt.</div>
+                    ) : (
+                      <ul className="list-disc space-y-1 pl-5 text-sm text-gray-700">
+                        {summaryBullets.map((line) => (
+                          <li key={line}>{line}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg border border-white/80 bg-white p-3">
+                    <div className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">Danh sách case chưa test</div>
+                    {untestedCases.length === 0 ? (
+                      <div className="text-sm text-emerald-700">Không có case nào đang ở trạng thái Not Run.</div>
+                    ) : (
+                      <div className="max-h-44 space-y-3 overflow-y-auto pr-1 text-sm text-gray-700">
+                        {Object.entries(groupedUntestedCases).map(([feature, cases]) => (
+                          <div key={feature}>
+                            <div className="font-semibold text-slate-800">{feature}</div>
+                            <ul className="mt-1 list-disc space-y-1 pl-5 text-gray-600">
+                              {cases.map((tc) => (
+                                <li key={tc.id}>{tc.description || tc.testToPerform || '(không có mô tả)'}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>

@@ -31,7 +31,7 @@ const Modal = ({ isOpen, onClose, title, children, onConfirm, confirmText = 'Con
 
       {/* Modal card */}
       <div
-        className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        className="relative mx-4 flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -40,7 +40,7 @@ const Modal = ({ isOpen, onClose, title, children, onConfirm, confirmText = 'Con
         </div>
 
         {/* Content */}
-        <div className="px-6 py-4">
+        <div className="overflow-y-auto px-6 py-4">
           {children}
         </div>
 
