@@ -1,6 +1,11 @@
 node_modules
 .vercel
 dist
+dist/
 .env
 .gradle
 backups
+
+# SQLite transient files
+*.db-wal
+*.db-shm
